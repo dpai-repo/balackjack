@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #08090c;
+    color: #e2e8f0;
+    font-family: 'Chakra Petch', system-ui, sans-serif;
+    user-select: none;
+    overflow-x: hidden;
+  }
+}
+
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+}
+
+.font-terminal {
+  font-family: 'VT323', monospace;
+}
+
+/* CRT EFFECTS PIPELINE */
+.crt-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-curvature {
+  border-radius: 12px;
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 240, 255, 0.15);
+}
+
+.crt-scanlines {
+  position: relative;
+}
+
+.crt-scanlines::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  z-index: 40;
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+}
+
+.crt-vignette::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.85) 100%);
+  z-index: 41;
+  pointer-events: none;
+}
+
+.crt-flicker {
+  animation: crt-flicker-anim 0.15s infinite;
+}
+
+@keyframes crt-flicker-anim {
+  0% { opacity: 0.993; }
+  50% { opacity: 1; }
+  100% { opacity: 0.988; }
+}
+
+.chromatic-aberration {
+  text-shadow: 1px 0 rgba(255, 0, 100, 0.6), -1px 0 rgba(0, 240, 255, 0.6);
+}
+
+.glow-cyan {
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+}
+
+.glow-magenta {
+  text-shadow: 0 0 8px rgba(255, 0, 234, 0.7);
+}
+
+.glow-gold {
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+}
+
+/* Screen Shake */
+@keyframes shake-anim {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  20% { transform: translate(-2px, -1px) rotate(-0.5deg); }
+  40% { transform: translate(-1px, 2px) rotate(0.5deg); }
+  60% { transform: translate(2px, 1px) rotate(0deg); }
+  80% { transform: translate(-1px, -1px) rotate(0.5deg); }
+  100% { transform: translate(0px, 0px) rotate(0deg); }
+}
+
+.screen-shaking {
+  animation: shake-anim 0.25s;
+}
+
+/* Pixel Card Styling */
+.pixel-box {
+  background: #0f1319;
+  border: 2px solid #243042;
+  box-shadow: 3px 3px 0px #06080b, inset 0 0 8px rgba(0, 240, 255, 0.05);
+}
+
+.pixel-btn {
+  transition: all 0.08s ease-in-out;
+  border-width: 2px;
+  box-shadow: 3px 3px 0px #000;
+}
+
+.pixel-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #000;
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000;
+}

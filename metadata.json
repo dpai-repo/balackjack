@@ -1,0 +1,8 @@
+{
+  "name": "Balackjack",
+  "description": "A blackjack combat roguelike, deckbuilder, and cooperative multiplayer boss battler with CRT arcade aesthetics and lo-fi audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
