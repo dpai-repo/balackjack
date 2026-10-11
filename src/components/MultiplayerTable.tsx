@@ -86,6 +86,51 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
     }
   };
 
+  // Keyboard Shortcuts: H for Hit, S for Stand, Space/Enter for Next Round
+  const roomStateRef = useRef(roomState);
+  roomStateRef.current = roomState;
+  const localPlayerIdRef = useRef(localPlayerId);
+  localPlayerIdRef.current = localPlayerId;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      const state = roomStateRef.current;
+      if (!state) return;
+
+      const players = Object.values(state.players);
+      const myPlayer = localPlayerIdRef.current
+        ? state.players[localPlayerIdRef.current]
+        : players.find(p => p.name === playerName);
+
+      const key = e.key.toLowerCase();
+      if (key === 'h') {
+        if (state.phase === 'player_turn' && myPlayer && myPlayer.status === 'acting') {
+          e.preventDefault();
+          soundManager.playHit();
+          sendAction({ type: 'hit' });
+        }
+      } else if (key === 's') {
+        if (state.phase === 'player_turn' && myPlayer && myPlayer.status === 'acting') {
+          e.preventDefault();
+          soundManager.playStand();
+          sendAction({ type: 'stand' });
+        }
+      } else if (key === ' ' || key === 'enter') {
+        if (myPlayer?.isHost && (state.phase === 'round_resolution' || state.phase === 'reward')) {
+          e.preventDefault();
+          soundManager.playButtonClick();
+          sendAction({ type: 'next_round' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [playerName]);
+
   if (!roomState) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] text-center p-6">
@@ -289,7 +334,7 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
                   </div>
 
                   {/* Cards Dealt */}
-                  <div className="flex items-center justify-center gap-1 my-1 min-h-[60px]">
+                  <div className="flex items-center justify-center gap-1 my-1.5 min-h-[84px]">
                     {player.hand.map(card => (
                       <CardView key={card.id} card={card} compact />
                     ))}
@@ -297,9 +342,9 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
                 </div>
 
                 {/* Hand Value & Turn Status Badge */}
-                <div className="mt-2 pt-1.5 border-t border-slate-800 text-center">
+                <div className="mt-2 pt-1.5 border-t border-slate-800 text-center relative z-10">
                   <div className="text-[11px] font-pixel text-slate-300">
-                    VAL: <span className="text-yellow-400">{player.handCalc.total}</span>
+                    VAL: <span className="text-yellow-400 font-bold">{player.handCalc.total}</span>
                   </div>
                   <div className={`text-[9px] font-pixel uppercase mt-0.5 ${
                     player.status === 'stood'
@@ -380,16 +425,68 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
       )}
 
       {/* ROUND RESOLUTION OR REWARD NEXT TURN BUTTON */}
-      {(roomState.phase === 'round_resolution' || roomState.phase === 'reward') && isHost && (
+      {(roomState.phase === 'round_resolution' || roomState.phase === 'reward') && (
         <div className="flex justify-center my-3">
+          {isHost ? (
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                sendAction({ type: 'next_round' });
+              }}
+              className="pixel-btn px-8 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs sm:text-sm font-bold rounded border-yellow-200 animate-pulse shadow-lg"
+            >
+              {roomState.phase === 'reward' ? 'ADVANCE TO NEXT ENCOUNTER [SPACE] →' : 'COMMENCE NEXT ROUND [SPACE] →'}
+            </button>
+          ) : (
+            <div className="px-6 py-2.5 bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-pixel text-xs rounded animate-pulse">
+              {roomState.phase === 'reward'
+                ? '🎉 BOSS DEFEATED! WAITING FOR HOST TO ADVANCE...'
+                : 'ROUND RESOLVED. WAITING FOR HOST...'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MULTIPLAYER VICTORY OVERLAY */}
+      {roomState.phase === 'victory' && (
+        <div className="pixel-box p-6 rounded-lg border-2 border-yellow-400 bg-slate-900/90 text-center max-w-lg mx-auto my-4 w-full">
+          <div className="text-4xl mb-2 animate-bounce">🏆</div>
+          <h2 className="font-pixel text-base sm:text-lg text-yellow-400 glow-gold mb-2">
+            MISSION ACCOMPLISHED!
+          </h2>
+          <p className="text-xs font-mono text-slate-300 mb-4">
+            The operative team dismantled all 5 Syndicate Bosses and neutralized The Grand Algorithm!
+          </p>
           <button
             onClick={() => {
               soundManager.playButtonClick();
-              sendAction({ type: 'next_round' });
+              onLeaveTable();
             }}
-            className="pixel-btn px-8 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs sm:text-sm font-bold rounded border-yellow-200 animate-pulse shadow-lg"
+            className="pixel-btn px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs font-bold rounded border-yellow-200"
           >
-            {roomState.phase === 'reward' ? 'ADVANCE TO NEXT ENCOUNTER →' : 'COMMENCE NEXT ROUND →'}
+            RETURN TO LOBBY
+          </button>
+        </div>
+      )}
+
+      {/* MULTIPLAYER GAME OVER OVERLAY */}
+      {roomState.phase === 'game_over' && (
+        <div className="pixel-box p-6 rounded-lg border-2 border-red-500 bg-red-950/60 text-center max-w-lg mx-auto my-4 w-full">
+          <div className="text-4xl mb-2">💀</div>
+          <h2 className="font-pixel text-base sm:text-lg text-red-400 mb-2">
+            TEAM ELIMINATED
+          </h2>
+          <p className="text-xs font-mono text-slate-300 mb-4">
+            All operatives were defeated by {roomState.boss.name} in Act {roomState.actNumber}.
+          </p>
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              onLeaveTable();
+            }}
+            className="pixel-btn px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-pixel text-xs font-bold rounded border-red-400"
+          >
+            RETURN TO LOBBY
           </button>
         </div>
       )}

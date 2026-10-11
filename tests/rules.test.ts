@@ -246,4 +246,29 @@ describe('Multiplayer Server Security & Authoritative Rules', () => {
     }
     expect(Object.keys(room.state.players).length).toBeLessThanOrEqual(6);
   });
+
+  it('correctly advances to next act boss with full HP when current boss is defeated', () => {
+    const room = new GameRoom('TEST', true);
+    room.addPlayer('p1', 'Alice', 'card_sharp');
+    room.handleAction('p1', { type: 'ready' });
+    room.handleAction('p1', { type: 'start_game' });
+
+    expect(room.state.actNumber).toBe(1);
+    expect(room.state.boss.name).toBe('The Pit Boss');
+
+    // Simulate defeating the Act 1 boss
+    room.state.bossHp = 0;
+    room.state.phase = 'reward';
+    room.state.actNumber = 2; // Incremented during defeat
+
+    // Host clicks next_round
+    room.handleAction('p1', { type: 'next_round' });
+
+    // Must advance to Act 2 Madame Roulette with positive max HP!
+    expect(room.state.actNumber).toBe(2);
+    expect(room.state.boss.name).toBe('Madame Roulette');
+    expect(room.state.bossHp).toBe(180);
+    expect(room.state.bossMaxHp).toBe(180);
+    expect(room.state.phase).toBe('player_turn');
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Boss, HandCalculation, Joker, Consumable, FloatingText } from '../shared/types';
 import { CardView } from './CardView';
 import { FloatingCombatText } from './FloatingCombatText';
@@ -193,6 +193,46 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
     runDealerTurn(playerCards);
   };
+
+  // KEYBOARD SHORTCUTS: H for Hit, S for Stand, Space/Enter for Next Round
+  const hitRef = useRef(handleHit);
+  hitRef.current = handleHit;
+  const standRef = useRef(handleStand);
+  standRef.current = handleStand;
+  const startNewRoundRef = useRef(startNewRound);
+  startNewRoundRef.current = startNewRound;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const roundSummaryRef = useRef(roundSummary);
+  roundSummaryRef.current = roundSummary;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 'h') {
+        if (phaseRef.current === 'player_turn') {
+          e.preventDefault();
+          hitRef.current();
+        }
+      } else if (key === 's') {
+        if (phaseRef.current === 'player_turn') {
+          e.preventDefault();
+          standRef.current();
+        }
+      } else if (key === ' ' || key === 'enter') {
+        if (roundSummaryRef.current) {
+          e.preventDefault();
+          startNewRoundRef.current();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // DEALER TURN
   const runDealerTurn = (finalPlayerCards: Card[]) => {

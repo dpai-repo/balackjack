@@ -179,7 +179,11 @@ export class GameRoom {
 
       case 'next_round':
         if (player.isHost && (this.state.phase === 'round_resolution' || this.state.phase === 'reward')) {
-          this.startNewRound();
+          if (this.state.phase === 'reward' || this.state.bossHp <= 0) {
+            this.startEncounter();
+          } else {
+            this.startNewRound();
+          }
         }
         break;
     }
@@ -196,6 +200,12 @@ export class GameRoom {
   }
 
   private startNewRound() {
+    // If boss is already defeated, initialize the new act encounter
+    if (this.state.bossHp <= 0) {
+      this.startEncounter();
+      return;
+    }
+
     if (this.deck.length < 15) {
       this.deck = shuffleDeck(createStandardDeck());
     }
@@ -506,10 +516,16 @@ export class GameRoom {
       } else {
         this.state.phase = 'reward';
         this.state.actNumber++;
-        // Grant rewards to all surviving players
+        // Grant rewards to all players and revive any knocked out for the new Act
         Object.values(this.state.players).forEach(p => {
           p.chips += 40;
-          p.hp = Math.min(p.maxHp, p.hp + 20); // Post-boss victory rest
+          if (p.hp <= 0) {
+            p.hp = Math.round(p.maxHp * 0.5);
+            p.status = 'acting';
+            this.addLog(`💖 ${p.name} was revived by the team for the new Act!`);
+          } else {
+            p.hp = Math.min(p.maxHp, p.hp + 25); // Post-boss victory rest
+          }
         });
       }
     } else {
