@@ -45,14 +45,23 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'state_update') {
+        if (payload.type === 'init') {
+          if (payload.playerId) {
+            setLocalPlayerId(payload.playerId);
+          }
+          if (payload.state) {
+            setRoomState(payload.state);
+          }
+        } else if (payload.type === 'state_update') {
           const nextState: NetworkRoomState = payload.state;
           setRoomState(nextState);
 
-          // Find local player ID by matching name
-          const found = Object.values(nextState.players).find(p => p.name === playerName);
-          if (found && !localPlayerId) {
-            setLocalPlayerId(found.id);
+          // Fallback matching if localPlayerId not yet stored
+          if (!localPlayerId) {
+            const found = Object.values(nextState.players).find(p => p.name === playerName);
+            if (found) {
+              setLocalPlayerId(found.id);
+            }
           }
 
           if (nextState.phase === 'dealer_turn') {
@@ -106,20 +115,21 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
         : players.find(p => p.name === playerName);
 
       const key = e.key.toLowerCase();
-      if (key === 'h') {
+      const code = e.code;
+      if (key === 'h' || code === 'KeyH') {
         if (state.phase === 'player_turn' && myPlayer && myPlayer.status === 'acting') {
           e.preventDefault();
           soundManager.playHit();
           sendAction({ type: 'hit' });
         }
-      } else if (key === 's') {
+      } else if (key === 's' || code === 'KeyS') {
         if (state.phase === 'player_turn' && myPlayer && myPlayer.status === 'acting') {
           e.preventDefault();
           soundManager.playStand();
           sendAction({ type: 'stand' });
         }
-      } else if (key === ' ' || key === 'enter') {
-        if (myPlayer?.isHost && (state.phase === 'round_resolution' || state.phase === 'reward')) {
+      } else if (key === ' ' || key === 'enter' || code === 'Space' || code === 'Enter') {
+        if (state.phase === 'round_resolution' || state.phase === 'reward') {
           e.preventDefault();
           soundManager.playButtonClick();
           sendAction({ type: 'next_round' });
@@ -427,23 +437,15 @@ export const MultiplayerTable: React.FC<MultiplayerTableProps> = ({
       {/* ROUND RESOLUTION OR REWARD NEXT TURN BUTTON */}
       {(roomState.phase === 'round_resolution' || roomState.phase === 'reward') && (
         <div className="flex justify-center my-3">
-          {isHost ? (
-            <button
-              onClick={() => {
-                soundManager.playButtonClick();
-                sendAction({ type: 'next_round' });
-              }}
-              className="pixel-btn px-8 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs sm:text-sm font-bold rounded border-yellow-200 animate-pulse shadow-lg"
-            >
-              {roomState.phase === 'reward' ? 'ADVANCE TO NEXT ENCOUNTER [SPACE] →' : 'COMMENCE NEXT ROUND [SPACE] →'}
-            </button>
-          ) : (
-            <div className="px-6 py-2.5 bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-pixel text-xs rounded animate-pulse">
-              {roomState.phase === 'reward'
-                ? '🎉 BOSS DEFEATED! WAITING FOR HOST TO ADVANCE...'
-                : 'ROUND RESOLVED. WAITING FOR HOST...'}
-            </div>
-          )}
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              sendAction({ type: 'next_round' });
+            }}
+            className="pixel-btn px-8 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs sm:text-sm font-bold rounded border-yellow-200 animate-pulse shadow-lg"
+          >
+            {roomState.phase === 'reward' ? 'ADVANCE TO NEXT ENCOUNTER [SPACE] →' : 'COMMENCE NEXT ROUND [SPACE] →'}
+          </button>
         </div>
       )}
 

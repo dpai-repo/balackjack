@@ -7,7 +7,7 @@ import {
   getRankBaseValue,
 } from '../src/shared/rules';
 import { GameRoom } from '../src/server/room';
-import { JOKERS_CATALOG, getJokerById } from '../src/shared/jokers';
+import { JOKERS_CATALOG, getJokerById, evaluateComboLinks, getSlotMultiplier } from '../src/shared/jokers';
 import { CONSUMABLES_CATALOG } from '../src/shared/consumables';
 import { BOSSES } from '../src/shared/bosses';
 import { CHARACTERS } from '../src/shared/characters';
@@ -272,3 +272,54 @@ describe('Multiplayer Server Security & Authoritative Rules', () => {
     expect(room.state.phase).toBe('player_turn');
   });
 });
+
+describe('Joker Slot Limits & Combo Link Synergy Matrix', () => {
+  it('correctly detects adjacent combo link when Jokers share an affinity tag', () => {
+    const loadedAce = getJokerById('loaded_ace')!; // suit_blade, overdrive
+    const cyberSpades = getJokerById('cyber_spades')!; // suit_blade, overdrive
+
+    const slots = [loadedAce, cyberSpades, null];
+    const links = evaluateComboLinks(slots);
+
+    expect(links.length).toBe(1);
+    expect(links[0].sourceIndex).toBe(0);
+    expect(links[0].targetIndex).toBe(1);
+    expect(links[0].multiplier).toBeGreaterThan(1.0);
+    expect(links[0].synergyName).toBeTruthy();
+  });
+
+  it('does not create combo links between non-adjacent slots', () => {
+    const loadedAce = getJokerById('loaded_ace')!;
+    const cyberSpades = getJokerById('cyber_spades')!;
+
+    // Slot 0 and Slot 2 (empty slot in middle)
+    const slots = [loadedAce, null, cyberSpades];
+    const links = evaluateComboLinks(slots);
+
+    expect(links.length).toBe(0);
+  });
+
+  it('calculates compounded slot multipliers when linked on multiple sides', () => {
+    const loadedAce = getJokerById('loaded_ace')!; // suit_blade, overdrive
+    const cyberSpades = getJokerById('cyber_spades')!; // suit_blade, overdrive
+    const friendlyFire = getJokerById('friendly_fire')!; // suit_blade, overdrive
+
+    // All three adjacent
+    const slots = [loadedAce, cyberSpades, friendlyFire];
+    const links = evaluateComboLinks(slots);
+
+    expect(links.length).toBe(2);
+    // Center slot (index 1) is connected to both slot 0 and slot 2
+    const centerMult = getSlotMultiplier(1, links);
+    expect(centerMult).toBeGreaterThan(1.5);
+  });
+
+  it('all 15 Jokers possess defined affinity tags for synergy building', () => {
+    expect(JOKERS_CATALOG.length).toBeGreaterThanOrEqual(15);
+    JOKERS_CATALOG.forEach(j => {
+      expect(j.affinityTags).toBeDefined();
+      expect(j.affinityTags!.length).toBeGreaterThan(0);
+    });
+  });
+});
+

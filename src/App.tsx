@@ -97,6 +97,7 @@ export default function App() {
   const [playerArmor, setPlayerArmor] = useState<number>(10);
   const [playerChips, setPlayerChips] = useState<number>(35);
   const [playerJokers, setPlayerJokers] = useState<Joker[]>([]);
+  const [unlockedJokerSlots, setUnlockedJokerSlots] = useState<number>(3);
   const [playerConsumables, setPlayerConsumables] = useState<Consumable[]>([]);
 
   // REWARDS OFFERED
@@ -158,6 +159,7 @@ export default function App() {
 
     const startJoker = getJokerById(char.startingJokerId);
     setPlayerJokers(startJoker ? [startJoker] : []);
+    setUnlockedJokerSlots(3);
 
     const startItem = getConsumableById(char.startingConsumableId);
     setPlayerConsumables(startItem ? [startItem] : []);
@@ -232,7 +234,13 @@ export default function App() {
   };
 
   const handlePickJoker = (joker: Joker) => {
-    setPlayerJokers(prev => [...prev, joker]);
+    setPlayerJokers(prev => {
+      if (prev.length >= unlockedJokerSlots) {
+        // Swap oldest or replace
+        return [...prev.slice(1), joker];
+      }
+      return [...prev, joker];
+    });
     advanceAfterReward();
   };
 
@@ -396,6 +404,8 @@ export default function App() {
               playerArmor={playerArmor}
               playerChips={playerChips}
               playerJokers={playerJokers}
+              unlockedJokerSlots={unlockedJokerSlots}
+              onUpdateJokers={setPlayerJokers}
               playerConsumables={playerConsumables}
               onVictory={handleCombatVictory}
               onDefeat={handleCombatDefeat}
@@ -424,6 +434,12 @@ export default function App() {
               playerDeck={playerDeck}
               shopJokers={shopJokers}
               shopConsumables={shopConsumables}
+              unlockedSlots={unlockedJokerSlots}
+              onBuySlotExpansion={() => {
+                const cost = unlockedJokerSlots === 3 ? 60 : 100;
+                setPlayerChips(prev => prev - cost);
+                setUnlockedJokerSlots(prev => Math.min(5, prev + 1));
+              }}
               onBuyJoker={(joker) => {
                 setPlayerChips(prev => prev - joker.cost);
                 setPlayerJokers(prev => [...prev, joker]);

@@ -181,9 +181,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div>
               <div className="flex justify-between text-xs font-mono mb-1">
-                <span>Music Volume (Lo-Fi Synth)</span>
+                <span>Music Volume (Amiga MOD Tracker)</span>
                 <span>{Math.round(settings.musicVolume * 100)}%</span>
               </div>
+              <p className="text-[10px] text-slate-400 font-mono mb-1.5">
+                Procedural 64-bar Amiga MOD tracker · 72 BPM melancholic chillout · Adaptive intensity
+              </p>
               <input
                 type="range"
                 min="0"

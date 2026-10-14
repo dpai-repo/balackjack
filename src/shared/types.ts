@@ -39,6 +39,13 @@ export type TriggerTiming =
   | 'onRoundPush'
   | 'onCombatStart';
 
+export type JokerAffinityTag =
+  | 'suit_blade'   // Spades & Clubs combat affinities
+  | 'high_roller'  // Wealth, Diamonds, streak scaling
+  | 'quantum'      // Probability, Dice, Glitch shifts
+  | 'medic'        // Hearts, vitality, armor siphon
+  | 'overdrive';   // Raw critical attack multipliers
+
 export interface Joker {
   id: string;
   name: string;
@@ -47,6 +54,37 @@ export interface Joker {
   cost: number;
   icon: string;
   effectType: string;
+  affinityTags?: JokerAffinityTag[];
+}
+
+export interface ComboLink {
+  sourceIndex: number;
+  targetIndex: number;
+  sourceJokerId: string;
+  targetJokerId: string;
+  synergyTag: JokerAffinityTag;
+  synergyName: string;
+  synergyBonusText: string;
+  multiplier: number;
+}
+
+export interface JokerSlotState {
+  unlockedSlots: number; // 3 to 5
+  slots: (Joker | null)[];
+  activeLinks: ComboLink[];
+}
+
+export interface Particle {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
+  shape: 'square' | 'spark' | 'ring';
 }
 
 export interface Consumable {

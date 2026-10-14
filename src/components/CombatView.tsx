@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Boss, HandCalculation, Joker, Consumable, FloatingText } from '../shared/types';
 import { CardView } from './CardView';
 import { FloatingCombatText } from './FloatingCombatText';
+import { ParticleCanvas, ParticleEvent } from './ParticleCanvas';
+import { JokerSlotTray } from './JokerSlotTray';
 import { calculateHandValue, shouldDealerHit, evaluateCombatRound } from '../shared/rules';
+import { evaluateComboLinks, getSlotMultiplier } from '../shared/jokers';
 import { createStandardDeck, shuffleDeck } from '../shared/deck';
 import { soundManager } from '../audio/soundManager';
 
@@ -14,6 +17,8 @@ interface CombatViewProps {
   playerArmor: number;
   playerChips: number;
   playerJokers: Joker[];
+  unlockedJokerSlots?: number;
+  onUpdateJokers?: (jokers: Joker[]) => void;
   playerConsumables: Consumable[];
   onVictory: (remainingHp: number, remainingArmor: number, chipsEarned: number) => void;
   onDefeat: () => void;
@@ -27,7 +32,9 @@ export const CombatView: React.FC<CombatViewProps> = ({
   playerMaxHp,
   playerArmor: initialArmor,
   playerChips: initialChips,
-  playerJokers,
+  playerJokers: initialJokers,
+  unlockedJokerSlots = 3,
+  onUpdateJokers,
   playerConsumables: initialConsumables,
   onVictory,
   onDefeat,
@@ -36,11 +43,22 @@ export const CombatView: React.FC<CombatViewProps> = ({
   // Combat State
   const [deck, setDeck] = useState<Card[]>([]);
   const [bossHp, setBossHp] = useState<number>(boss.maxHp);
+  const [bossFlashHp, setBossFlashHp] = useState<number>(boss.maxHp);
   const [bossArmor, setBossArmor] = useState<number>(0);
   const [playerHp, setPlayerHp] = useState<number>(initialPlayerHp);
+  const [playerFlashHp, setPlayerFlashHp] = useState<number>(initialPlayerHp);
   const [playerArmor, setPlayerArmor] = useState<number>(initialArmor);
   const [playerChips, setPlayerChips] = useState<number>(initialChips);
   const [consumables, setConsumables] = useState<Consumable[]>(initialConsumables);
+
+  // Equipped Jokers State
+  const [equippedJokers, setEquippedJokers] = useState<(Joker | null)[]>(() => {
+    const slots: (Joker | null)[] = [...initialJokers];
+    while (slots.length < unlockedJokerSlots) {
+      slots.push(null);
+    }
+    return slots.slice(0, unlockedJokerSlots);
+  });
 
   // Round State
   const [roundNumber, setRoundNumber] = useState<number>(1);
@@ -50,13 +68,17 @@ export const CombatView: React.FC<CombatViewProps> = ({
   const [dealerCards, setDealerCards] = useState<Card[]>([]);
   const [dealerHoleCard, setDealerHoleCard] = useState<Card | null>(null);
 
-  const [phase, setPhase] = useState<'dealing' | 'player_turn' | 'dealer_turn' | 'round_resolved'>('dealing');
+  const [phase, setPhase] = useState<'dealing' | 'player_turn' | 'dealer_turn' | 'round_resolved' | 'boss_defeated'>('dealing');
   const [floatingTexts, setFloatingTexts] = useState<FloatingText[]>([]);
   const [combatLogs, setCombatLogs] = useState<string[]>([]);
   const [roundSummary, setRoundSummary] = useState<string | null>(null);
+  const [particleEvents, setParticleEvents] = useState<ParticleEvent[]>([]);
 
   const playerCalc: HandCalculation = calculateHandValue(playerCards);
   const dealerCalc: HandCalculation = calculateHandValue(dealerCards);
+
+  // Active combo links computed from equipped slot arrangement
+  const activeLinks = evaluateComboLinks(equippedJokers);
 
   // Initialize combat encounter
   useEffect(() => {
@@ -64,7 +86,44 @@ export const CombatView: React.FC<CombatViewProps> = ({
     const freshDeck = shuffleDeck(playerDeck.length >= 20 ? [...playerDeck] : createStandardDeck());
     setDeck(freshDeck);
     startNewRound(freshDeck);
+    window.focus();
   }, []);
+
+  // Update delayed health reservoirs for smooth HP damage flash
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBossFlashHp(bossHp);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [bossHp]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPlayerFlashHp(playerHp);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [playerHp]);
+
+  // Dynamic Amiga MOD Tracker Intensity modulation based on live encounter stakes
+  useEffect(() => {
+    if (phase === 'boss_defeated') {
+      soundManager.setGameIntensity(0);
+      return;
+    }
+    const isCritical = (bossHp < boss.maxHp * 0.35) || (playerHp < playerMaxHp * 0.35);
+    if (isCritical) {
+      soundManager.setGameIntensity(3);
+    } else if (phase === 'dealer_turn' || phase === 'round_resolved') {
+      soundManager.setGameIntensity(2);
+    } else {
+      const calc = calculateHandValue(playerCards);
+      if (calc.total >= 18 && !calc.isBust) {
+        soundManager.setGameIntensity(2);
+      } else {
+        soundManager.setGameIntensity(1);
+      }
+    }
+  }, [phase, bossHp, playerHp, playerCards, boss.maxHp, playerMaxHp]);
 
   const addLog = (msg: string) => {
     setCombatLogs(prev => [msg, ...prev.slice(0, 20)]);
@@ -78,7 +137,28 @@ export const CombatView: React.FC<CombatViewProps> = ({
     }, 1200);
   };
 
+  const triggerParticles = (type: 'spark' | 'shard' | 'bust', x: number, y: number, color?: string, count?: number) => {
+    setParticleEvents(prev => [...prev, { type, x, y, color, count }]);
+  };
+
+  const handleReorderJokers = (newSlots: (Joker | null)[]) => {
+    setEquippedJokers(newSlots);
+    const compactJokers = newSlots.filter((j): j is Joker => j !== null);
+    if (onUpdateJokers) {
+      onUpdateJokers(compactJokers);
+    }
+    const newLinks = evaluateComboLinks(newSlots);
+    if (newLinks.length > 0) {
+      addLog(`⚡ Combo Reconfigured: ${newLinks.length} active resonance link(s)!`);
+      triggerParticles('spark', 50, 75, '#00f0ff', 16);
+    }
+  };
+
   const startNewRound = (currentDeck: Card[] = deck) => {
+    if (bossHp <= 0 || phase === 'boss_defeated') {
+      return;
+    }
+
     let workingDeck = [...currentDeck];
     if (workingDeck.length < 15) {
       workingDeck = shuffleDeck(createStandardDeck());
@@ -104,11 +184,12 @@ export const CombatView: React.FC<CombatViewProps> = ({
     if (bonusArmor > 0) {
       setPlayerArmor(prev => prev + bonusArmor);
       addFloatingText(`+${bonusArmor} ARMOR`, '#00d2ff', 35, 65);
+      triggerParticles('spark', 35, 65, '#00d2ff', 10);
     }
 
     setPlayerCards([p1, p2]);
     setDealerHoleCard(dHole);
-    // Dealer initially displays visible card + secret placeholder
+    // Dealer initially displays visible card + secret hole placeholder
     setDealerCards([d1, { id: 'hole-card', suit: 'spades', rank: 'A', hidden: true }]);
     setDeck(workingDeck);
 
@@ -117,15 +198,17 @@ export const CombatView: React.FC<CombatViewProps> = ({
       const calc = calculateHandValue([p1, p2]);
       if (calc.isBlackjack) {
         addFloatingText('NATURAL 21!', '#ffd700', 50, 50);
+        triggerParticles('spark', 50, 50, '#ffd700', 25);
         soundManager.playBlackjack();
       }
-    }, 600);
+    }, 500);
   };
 
   // PLAYER HIT
   const handleHit = () => {
     if (phase !== 'player_turn') return;
     soundManager.playHit();
+    triggerParticles('spark', 50, 55, '#38bdf8', 10);
 
     let workingDeck = [...deck];
     if (workingDeck.length === 0) {
@@ -146,7 +229,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
     if (boss.ruleType === 'punish_many_hits' && newHits >= 3) {
       setBossArmor(prev => prev + 15);
       addFloatingText('BOSS GAINED +15 SHIELD', '#ff9100', 50, 25);
-      addLog('High Roller Rule: Dealer gained +15 Shield from excessive hits!');
+      addLog('High Roller Protocol: Dealer gained +15 Shield from excessive hits!');
     }
 
     const calc = calculateHandValue(newCards);
@@ -155,7 +238,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
     if (calc.isBust) {
       // Check for Ghost Hand
-      const hasGhostHand = playerJokers.some(j => j.id === 'ghost_hand');
+      const hasGhostHand = equippedJokers.some(j => j?.id === 'ghost_hand');
       if (hasGhostHand) {
         soundManager.playArmor();
         addFloatingText('GHOST HAND: 21 SAVED!', '#a855f7', 50, 60);
@@ -165,12 +248,14 @@ export const CombatView: React.FC<CombatViewProps> = ({
       } else {
         soundManager.playBust();
         onTriggerShake();
+        triggerParticles('bust', 50, 55, '#ef4444', 30);
         addFloatingText('BUST!', '#ef4444', 50, 60);
         addLog(`Player Busted with ${calc.total}!`);
         resolveCombat(newCards, dealerCards, true);
       }
     } else if (calc.total === 21) {
       addFloatingText('21 LOCKED!', '#22c55e', 50, 60);
+      triggerParticles('spark', 50, 55, '#22c55e', 18);
       setPhase('dealer_turn');
       setTimeout(() => runDealerTurn(newCards), 700);
     }
@@ -187,6 +272,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
       if (c.enhancement === 'radioactive') {
         setBossHp(prev => Math.max(0, prev - 8));
         addFloatingText('8 RADIATION DMG', '#76ff03', 50, 25);
+        triggerParticles('shard', 50, 25, '#76ff03', 8);
         addLog('Radioactive Card poisoned the dealer for 8 damage!');
       }
     });
@@ -194,7 +280,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
     runDealerTurn(playerCards);
   };
 
-  // KEYBOARD SHORTCUTS: H for Hit, S for Stand, Space/Enter for Next Round
+  // KEYBOARD CONTROLS (H / S / SPACE) with robust key/code matching & ref stability
   const hitRef = useRef(handleHit);
   hitRef.current = handleHit;
   const standRef = useRef(handleStand);
@@ -212,18 +298,20 @@ export const CombatView: React.FC<CombatViewProps> = ({
         return;
       }
       const key = e.key.toLowerCase();
-      if (key === 'h') {
+      const code = e.code;
+
+      if (key === 'h' || code === 'KeyH') {
         if (phaseRef.current === 'player_turn') {
           e.preventDefault();
           hitRef.current();
         }
-      } else if (key === 's') {
+      } else if (key === 's' || code === 'KeyS') {
         if (phaseRef.current === 'player_turn') {
           e.preventDefault();
           standRef.current();
         }
-      } else if (key === ' ' || key === 'enter') {
-        if (roundSummaryRef.current) {
+      } else if (key === ' ' || key === 'enter' || code === 'Space' || code === 'Enter') {
+        if (roundSummaryRef.current && phaseRef.current === 'round_resolved') {
           e.preventDefault();
           startNewRoundRef.current();
         }
@@ -244,9 +332,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
     setDealerCards(visibleDealer);
     setDealerHoleCard(null);
 
-    let currentDealerCalc = calculateHandValue(visibleDealer);
     let workingDeck = [...deck];
-
     const standThreshold = boss.ruleType === 'dynamic_stand_threshold'
       ? (16 + Math.floor(Math.random() * 3))
       : 17;
@@ -262,32 +348,41 @@ export const CombatView: React.FC<CombatViewProps> = ({
           setDeck(workingDeck);
           soundManager.playCardDeal();
           dealerStep(updatedCards);
-        }, 600);
+        }, 550);
       } else {
         setTimeout(() => {
           resolveCombat(finalPlayerCards, cards, false);
-        }, 700);
+        }, 650);
       }
     };
 
     dealerStep(visibleDealer);
   };
 
-  // COMBAT RESOLUTION
+  // COMBAT RESOLUTION & COMBO LINK SYNERGIES
   const resolveCombat = (pCards: Card[], dCards: Card[], playerBusted: boolean) => {
     setPhase('round_resolved');
     const pCalc = playerBusted ? { ...calculateHandValue(pCards), isBust: true } : calculateHandValue(pCards);
     const dCalc = calculateHandValue(dCards);
 
-    const hasLoadedAce = playerJokers.some(j => j.id === 'loaded_ace');
-    const hasTwinEcho = playerJokers.some(j => j.id === 'twin_echo');
-    const hasLuckyStatic = playerJokers.some(j => j.id === 'lucky_static');
-    const hasRedline = playerJokers.some(j => j.id === 'redline');
-    const hasFriendlyFire = playerJokers.some(j => j.id === 'friendly_fire');
-    const hasNeonFlush = playerJokers.some(j => j.id === 'neon_flush');
-    const hasHouseThief = playerJokers.some(j => j.id === 'house_thief');
-    const hasHeartPulse = playerJokers.some(j => j.id === 'heart_pulse');
-    const hasDiamondVault = playerJokers.some(j => j.id === 'diamond_vault');
+    // Compute active jokers and their adjacency multipliers
+    const activeJokersWithMult = equippedJokers.map((joker, index) => {
+      if (!joker) return null;
+      return {
+        joker,
+        multiplier: getSlotMultiplier(index, activeLinks),
+      };
+    }).filter(Boolean);
+
+    const hasLoadedAce = activeJokersWithMult.some(item => item?.joker.id === 'loaded_ace');
+    const hasTwinEcho = activeJokersWithMult.some(item => item?.joker.id === 'twin_echo');
+    const hasLuckyStatic = activeJokersWithMult.some(item => item?.joker.id === 'lucky_static');
+    const hasRedline = activeJokersWithMult.some(item => item?.joker.id === 'redline');
+    const hasFriendlyFire = activeJokersWithMult.some(item => item?.joker.id === 'friendly_fire');
+    const hasNeonFlush = activeJokersWithMult.some(item => item?.joker.id === 'neon_flush');
+    const hasHouseThief = activeJokersWithMult.some(item => item?.joker.id === 'house_thief');
+    const hasHeartPulse = activeJokersWithMult.some(item => item?.joker.id === 'heart_pulse');
+    const hasDiamondVault = activeJokersWithMult.some(item => item?.joker.id === 'diamond_vault');
 
     const result = evaluateCombatRound(
       pCalc,
@@ -309,6 +404,16 @@ export const CombatView: React.FC<CombatViewProps> = ({
 
     let finalDamageToBoss = result.damageToDealer;
 
+    // Apply highest active combo link multiplier to base attack damage if any combo is active
+    if (activeLinks.length > 0 && finalDamageToBoss > 0) {
+      const bestLinkMultiplier = Math.max(...activeLinks.map(l => l.multiplier));
+      const amplified = Math.round(finalDamageToBoss * bestLinkMultiplier);
+      const diff = amplified - finalDamageToBoss;
+      finalDamageToBoss = amplified;
+      addLog(`⚡ Combo Link Resonance amplified attack by +${diff} DMG (x${bestLinkMultiplier})!`);
+      triggerParticles('spark', 50, 20, '#00f0ff', 18);
+    }
+
     // Card enhancements multipliers (Polychrome / Holographic)
     pCards.forEach(c => {
       if (c.enhancement === 'holographic') {
@@ -322,6 +427,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
     if (finalDamageToBoss > 0) {
       soundManager.playAttack();
       onTriggerShake();
+      triggerParticles('shard', 50, 20, '#f43f5e', 20);
       setConsecutiveWins(prev => prev + 1);
 
       // Boss shield absorption
@@ -335,6 +441,8 @@ export const CombatView: React.FC<CombatViewProps> = ({
       setBossHp(prev => {
         const next = Math.max(0, prev - netBossHpDamage);
         if (next === 0) {
+          setPhase('boss_defeated');
+          triggerParticles('bust', 50, 25, '#ffd700', 40);
           setTimeout(() => {
             soundManager.playBgm('victory');
             onVictory(playerHp, playerArmor, 45);
@@ -362,89 +470,103 @@ export const CombatView: React.FC<CombatViewProps> = ({
       }
       if (hasHouseThief) {
         setPlayerArmor(prev => prev + 12);
+        addFloatingText('+12 ARMOR', '#00d2ff', 35, 65);
       }
-
-      setRoundSummary(`ROUND WON! Inflicted ${finalDamageToBoss} damage!`);
-    } else if (result.damageToPlayer > 0) {
+    } else if (result.outcome === 'dealer_win' || result.outcome === 'player_bust') {
       soundManager.playPlayerHit();
       onTriggerShake();
+      triggerParticles('shard', 50, 65, '#ef4444', 16);
       setConsecutiveWins(0);
 
-      let netDamage = result.damageToPlayer;
+      let netPlayerHpDamage = result.damageToPlayer;
       if (playerArmor > 0) {
-        const absorbed = Math.min(playerArmor, netDamage);
+        const absorbed = Math.min(playerArmor, netPlayerHpDamage);
         setPlayerArmor(prev => prev - absorbed);
-        netDamage -= absorbed;
+        netPlayerHpDamage -= absorbed;
       }
 
       setPlayerHp(prev => {
-        const next = Math.max(0, prev - netDamage);
+        const next = Math.max(0, prev - netPlayerHpDamage);
         if (next === 0) {
           setTimeout(() => {
             onDefeat();
-          }, 1200);
+          }, 1000);
         }
         return next;
       });
 
-      addFloatingText(`-${result.damageToPlayer} HP`, '#ef4444', 50, 70);
-      setRoundSummary(`ROUND LOST! Took ${result.damageToPlayer} damage!`);
-    } else {
-      setRoundSummary('PUSH! Hand stalemate.');
+      addFloatingText(`-${result.damageToPlayer} HP`, '#ef4444', 50, 65);
     }
 
-    result.bonusSummary.forEach(b => addLog(b));
+    const isPlayerVictory = result.outcome === 'player_win' || result.outcome === 'dealer_bust';
+    const isPlayerLoss = result.outcome === 'dealer_win' || result.outcome === 'player_bust';
+
     setRoundNumber(prev => prev + 1);
+    setRoundSummary(
+      `${isPlayerVictory ? 'VICTORY' : result.outcome === 'push' ? 'STANDOFF (PUSH)' : 'DEFEAT'}: ${
+        isPlayerVictory
+          ? `Dealt ${finalDamageToBoss} DMG to ${boss.name}`
+          : isPlayerLoss
+          ? `Took ${result.damageToPlayer} damage from Dealer`
+          : 'Both stood on equal ground'
+      }`
+    );
+
+    result.bonusSummary.forEach(b => addLog(b));
   };
 
-  // USE CONSUMABLE
+  // CONSUMABLES
   const useConsumable = (item: Consumable) => {
-    if (phase !== 'player_turn') return;
+    soundManager.playArmor();
     setConsumables(prev => prev.filter(c => c.id !== item.id));
 
     if (item.effectType === 'medkit') {
-      soundManager.playHeal();
       setPlayerHp(prev => Math.min(playerMaxHp, prev + 25));
-      addFloatingText('+25 HP', '#22c55e', 30, 70);
-      addLog('Used Medkit Patch: +25 HP.');
+      addFloatingText('+25 HP', '#22c55e', 50, 65);
+      addLog('Used Medkit: Restored 25 HP.');
     } else if (item.effectType === 'armor_plate') {
-      soundManager.playArmor();
       setPlayerArmor(prev => prev + 20);
-      addFloatingText('+20 ARMOR', '#00d2ff', 30, 70);
-      addLog('Used Armor Plate: +20 Armor.');
+      addFloatingText('+20 ARMOR', '#00d2ff', 50, 65);
+      addLog('Used Armor Plate: Gained 20 Armor.');
+    } else if (item.effectType === 'overcharge') {
+      setBossHp(prev => Math.max(0, prev - 25));
+      addFloatingText('25 DIRECT DMG', '#ec4899', 50, 20);
+      addLog('Overcharge EMP blasted the dealer for 25 damage!');
     } else if (item.effectType === 'rewind') {
-      soundManager.playCardDeal();
       if (playerCards.length > 2) {
-        const remaining = [...playerCards];
-        remaining.pop();
+        const discarded = playerCards[playerCards.length - 1];
         let workingDeck = [...deck];
+        if (workingDeck.length === 0) workingDeck = shuffleDeck(createStandardDeck());
         const replacement = workingDeck.pop()!;
-        remaining.push(replacement);
-        setPlayerCards(remaining);
+        const updated = [...playerCards.slice(0, -1), replacement];
+        setPlayerCards(updated);
         setDeck(workingDeck);
-        addLog(`Rewound last card into ${replacement.rank}!`);
+        addLog(`Rewound ${discarded.rank} -> Drew replacement.`);
       }
     }
   };
 
-  // BUST RISK CALCULATION
-  const bustRiskPercent = playerCalc.total <= 11 ? 0 : Math.min(99, Math.round(((playerCalc.total - 11) / 10) * 100));
+  const bustRiskPercent = playerCalc.total <= 11 ? 0 : Math.min(100, Math.round(((playerCalc.total - 11) / 10) * 100));
 
   return (
-    <div className="relative max-w-4xl mx-auto w-full p-3 sm:p-5 flex flex-col justify-between min-h-[85vh]">
+    <div className="relative max-w-5xl mx-auto w-full p-2 sm:p-4 flex flex-col justify-between min-h-[92vh] select-none">
+      {/* CANVAS PARTICLES LAYER */}
+      <ParticleCanvas events={particleEvents} />
+
+      {/* FLOATING DAMAGE & BUFF NUMBERS */}
       <FloatingCombatText items={floatingTexts} />
 
-      {/* TOP: BOSS STATUS BAR */}
-      <div className="pixel-box p-3 sm:p-4 rounded-lg border-2 border-red-900/80 bg-red-950/20 mb-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* TOP: DEALER / BOSS HUD */}
+      <div className="pixel-box p-3 sm:p-4 rounded-lg border-2 border-red-900/80 bg-red-950/20 mb-2 sm:mb-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-red-900/40 border border-red-500/50 flex items-center justify-center font-pixel text-xl shadow-inner">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-red-900/40 border border-red-500/50 flex items-center justify-center font-pixel text-xl shadow-inner">
               👹
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-pixel text-xs sm:text-sm text-red-400 font-bold">{boss.name}</h2>
-                <span className="text-[10px] font-pixel bg-red-950 px-2 py-0.5 rounded text-red-200 border border-red-800">
+                <span className="text-[10px] font-pixel bg-red-900 text-red-100 px-2 py-0.5 rounded border border-red-700">
                   ACT {boss.act}
                 </span>
               </div>
@@ -452,7 +574,7 @@ export const CombatView: React.FC<CombatViewProps> = ({
             </div>
           </div>
 
-          {/* BOSS HEALTH BAR */}
+          {/* BOSS HEALTH BAR WITH DUAL FLASH RESERVOIR */}
           <div className="w-full sm:w-64 space-y-1">
             <div className="flex justify-between text-xs font-mono">
               <span className="text-red-400 font-bold">DEALER HP</span>
@@ -460,9 +582,15 @@ export const CombatView: React.FC<CombatViewProps> = ({
                 {bossHp}/{boss.maxHp} {bossArmor > 0 && <span className="text-cyan-400">({bossArmor} Shield)</span>}
               </span>
             </div>
-            <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+            <div className="relative w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+              {/* White damage reservoir bar (lerps slower) */}
               <div
-                className="h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-300"
+                className="absolute inset-y-0 left-0 bg-white/60 transition-all duration-500"
+                style={{ width: `${Math.max(0, (bossFlashHp / boss.maxHp) * 100)}%` }}
+              />
+              {/* Primary HP gradient */}
+              <div
+                className="relative h-full bg-gradient-to-r from-red-600 to-rose-400 transition-all duration-200"
                 style={{ width: `${Math.max(0, (bossHp / boss.maxHp) * 100)}%` }}
               />
             </div>
@@ -470,55 +598,62 @@ export const CombatView: React.FC<CombatViewProps> = ({
         </div>
 
         {/* BOSS PASSIVE PROTOCOL BANNER */}
-        <div className="mt-2.5 pt-2 border-t border-red-950 text-xs font-mono text-red-300/80 flex items-center gap-2">
+        <div className="mt-2 pt-2 border-t border-red-950 text-xs font-mono text-red-300/80 flex items-center gap-2">
           <span className="text-red-400 font-bold">PROTOCOL:</span> {boss.specialRule}
         </div>
       </div>
 
       {/* DEALER'S CARDS TABLE */}
-      <div className="flex flex-col items-center justify-center my-2 sm:my-4">
-        <div className="text-xs font-pixel text-slate-400 mb-2 flex items-center gap-2">
+      <div className="flex flex-col items-center justify-center my-1 sm:my-3">
+        <div className="text-xs font-pixel text-slate-400 mb-1.5 flex items-center gap-2">
           <span>DEALER HAND:</span>
           <span className="text-red-300 font-bold">
             {phase === 'player_turn' ? `${dealerCalc.total} + ?` : `${dealerCalc.total}`}
           </span>
-          {dealerCalc.isBlackjack && <span className="text-yellow-400 font-bold">BLACKJACK!</span>}
+          {dealerCalc.isBlackjack && <span className="text-yellow-400 font-bold animate-pulse">BLACKJACK!</span>}
           {dealerCalc.isBust && <span className="text-emerald-400 font-bold">BUSTED!</span>}
         </div>
-        <div className="flex items-center justify-center gap-3 min-h-[120px]">
-          {dealerCards.map(card => (
-            <CardView key={card.id} card={card} />
+        <div className="flex items-center justify-center gap-2 sm:gap-3 min-h-[110px] sm:min-h-[130px]">
+          {dealerCards.map((card, idx) => (
+            <CardView key={`${card.id}-${idx}`} card={card} />
           ))}
         </div>
       </div>
 
       {/* ROUND SUMMARY & ACTION FEEDBACK */}
-      {roundSummary && (
-        <div className="mx-auto my-2 px-4 py-2 rounded-lg bg-slate-900/90 border border-yellow-400/50 text-center font-pixel text-xs text-yellow-300 animate-pulse">
+      {roundSummary && phase !== 'boss_defeated' && (
+        <div className="mx-auto my-1.5 px-4 py-2 rounded-lg bg-slate-900/90 border border-yellow-400/50 text-center font-pixel text-xs text-yellow-300 shadow-lg">
           {roundSummary}
           <div className="mt-2">
             <button
               onClick={() => startNewRound()}
-              className="pixel-btn px-4 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs rounded border-yellow-200 font-bold"
+              className="pixel-btn px-5 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-pixel text-xs rounded border-yellow-200 font-bold shadow-md animate-pulse"
             >
-              NEXT ROUND →
+              NEXT ROUND [SPACE] →
             </button>
           </div>
         </div>
       )}
 
+      {/* BOSS DEFEATED CELEBRATION */}
+      {phase === 'boss_defeated' && (
+        <div className="mx-auto my-2 px-6 py-3 rounded-lg bg-emerald-950/90 border-2 border-emerald-400 text-center font-pixel text-emerald-300 shadow-2xl animate-pulse">
+          🎉 BOSS DEFEATED! ADVANCING TO REWARDS...
+        </div>
+      )}
+
       {/* PLAYER'S CARDS TABLE */}
-      <div className="flex flex-col items-center justify-center my-2 sm:my-4">
-        <div className="flex items-center justify-center gap-3 min-h-[120px] mb-2">
-          {playerCards.map(card => (
-            <CardView key={card.id} card={card} />
+      <div className="flex flex-col items-center justify-center my-1 sm:my-3">
+        <div className="flex items-center justify-center gap-2 sm:gap-3 min-h-[110px] sm:min-h-[130px] mb-2">
+          {playerCards.map((card, idx) => (
+            <CardView key={`${card.id}-${idx}`} card={card} isNew={idx >= playerCards.length - 1} />
           ))}
         </div>
 
         {/* HAND VALUE & BUST RISK METER */}
-        <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-mono">
-          <div className="px-3 py-1 bg-cyan-950/80 border border-cyan-500/50 rounded flex items-center gap-2">
-            <span className="text-slate-400">Hand Value:</span>
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs font-mono">
+          <div className="px-3 py-1 bg-cyan-950/80 border border-cyan-500/50 rounded flex items-center gap-2 shadow-sm">
+            <span className="text-slate-400">Hand Total:</span>
             <span className="font-pixel text-sm text-cyan-300 font-bold">
               {playerCalc.total} {playerCalc.isSoft && `(Soft)`}
             </span>
@@ -544,35 +679,55 @@ export const CombatView: React.FC<CombatViewProps> = ({
         </div>
       </div>
 
-      {/* PLAYER CONTROLS (HIT / STAND / GEAR) */}
-      <div className="pixel-box p-3 sm:p-4 rounded-lg border-2 border-cyan-500/50 bg-slate-900/90">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-3">
-          {/* PLAYER HEALTH & ARMOR */}
-          <div className="flex items-center gap-4">
-            <div>
-              <div className="text-[10px] text-slate-400 font-mono">OPERATIVE HEALTH</div>
-              <div className="flex items-center gap-2">
-                <span className="font-pixel text-sm text-emerald-400">{playerHp}/{playerMaxHp} HP</span>
-                {playerArmor > 0 && (
-                  <span className="font-pixel text-xs text-cyan-400">+{playerArmor} Armor</span>
-                )}
+      {/* JOKER MATRIX TRAY WITH DRAG-AND-DROP REORDER & COMBO LINKS */}
+      <div className="my-2">
+        <JokerSlotTray
+          unlockedSlots={unlockedJokerSlots}
+          slots={equippedJokers}
+          onReorderSlots={handleReorderJokers}
+          activeLinks={activeLinks}
+        />
+      </div>
+
+      {/* BOTTOM ACTION DOCK: PLAYER HEALTH & HIT / STAND CONTROLS */}
+      <div className="pixel-box p-3 sm:p-4 rounded-lg border-2 border-cyan-500/50 bg-slate-900/95 sticky bottom-1 z-20">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          {/* PLAYER HEALTH & ARMOR WITH FLASH BAR */}
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="w-40 sm:w-48 space-y-1">
+              <div className="flex justify-between text-[11px] font-mono">
+                <span className="text-emerald-400 font-bold">OPERATIVE HP</span>
+                <span className="text-slate-200">
+                  {playerHp}/{playerMaxHp} {playerArmor > 0 && <span className="text-cyan-400">(+{playerArmor} Arm)</span>}
+                </span>
+              </div>
+              <div className="relative w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-700">
+                <div
+                  className="absolute inset-y-0 left-0 bg-white/60 transition-all duration-500"
+                  style={{ width: `${Math.max(0, (playerFlashHp / playerMaxHp) * 100)}%` }}
+                />
+                <div
+                  className="relative h-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-200"
+                  style={{ width: `${Math.max(0, (playerHp / playerMaxHp) * 100)}%` }}
+                />
               </div>
             </div>
+
             <div className="border-l border-slate-700 pl-3">
               <div className="text-[10px] text-slate-400 font-mono">CHIPS</div>
               <div className="font-pixel text-xs text-yellow-400">{playerChips} 🪙</div>
             </div>
           </div>
 
-          {/* COMBAT ACTION BUTTONS */}
-          <div className="flex items-center gap-3">
+          {/* COMBAT ACTION BUTTONS (HIT [H] & STAND [S]) */}
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
             <button
               disabled={phase !== 'player_turn'}
               onClick={handleHit}
-              className={`pixel-btn px-6 py-2.5 font-pixel text-xs sm:text-sm font-bold rounded border ${
+              className={`flex-1 sm:flex-none pixel-btn px-6 py-3 font-pixel text-xs sm:text-sm font-bold rounded border ${
                 phase === 'player_turn'
-                  ? 'bg-cyan-500 hover:bg-cyan-400 text-black border-cyan-300 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
-                  : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                  ? 'bg-cyan-500 hover:bg-cyan-400 text-black border-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.4)] active:scale-95'
+                  : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-50'
               }`}
             >
               HIT [H]
@@ -580,10 +735,10 @@ export const CombatView: React.FC<CombatViewProps> = ({
             <button
               disabled={phase !== 'player_turn'}
               onClick={handleStand}
-              className={`pixel-btn px-6 py-2.5 font-pixel text-xs sm:text-sm font-bold rounded border ${
+              className={`flex-1 sm:flex-none pixel-btn px-6 py-3 font-pixel text-xs sm:text-sm font-bold rounded border ${
                 phase === 'player_turn'
-                  ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
-                  : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                  ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.4)] active:scale-95'
+                  : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-50'
               }`}
             >
               STAND [S]
@@ -591,45 +746,26 @@ export const CombatView: React.FC<CombatViewProps> = ({
           </div>
         </div>
 
-        {/* EQUIPPED JOKERS & CONSUMABLES TRAY */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2.5 border-t border-slate-800 text-xs">
-          {/* Jokers Bar */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-pixel text-slate-400">JOKERS:</span>
-            <div className="flex gap-2">
-              {playerJokers.map(joker => (
-                <div
-                  key={joker.id}
-                  title={`${joker.name}: ${joker.description}`}
-                  className="w-7 h-7 rounded bg-slate-800 border border-yellow-500/50 flex items-center justify-center cursor-help transition-transform hover:scale-110"
+        {/* CONSUMABLES QUICK GEAR BAR */}
+        {consumables.length > 0 && (
+          <div className="flex items-center gap-2 pt-2 mt-2 border-t border-slate-800">
+            <span className="text-[10px] font-pixel text-slate-400">TACTICAL GEAR:</span>
+            <div className="flex gap-2 flex-wrap">
+              {consumables.map(item => (
+                <button
+                  key={item.id}
+                  disabled={phase !== 'player_turn'}
+                  onClick={() => useConsumable(item)}
+                  title={`Use ${item.name}: ${item.description}`}
+                  className="pixel-btn px-2.5 py-1 bg-emerald-950/60 hover:bg-emerald-800 border border-emerald-500/50 text-emerald-200 text-[10px] font-pixel rounded flex items-center gap-1.5"
                 >
-                  <span className="text-sm">{joker.icon}</span>
-                </div>
+                  <span>{item.icon}</span>
+                  <span>{item.name}</span>
+                </button>
               ))}
             </div>
           </div>
-
-          {/* Consumables Quick Use */}
-          {consumables.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-pixel text-slate-400">GEAR:</span>
-              <div className="flex gap-2">
-                {consumables.map(item => (
-                  <button
-                    key={item.id}
-                    disabled={phase !== 'player_turn'}
-                    onClick={() => useConsumable(item)}
-                    title={`Use ${item.name}: ${item.description}`}
-                    className="pixel-btn px-2 py-1 bg-emerald-950/60 hover:bg-emerald-800 border border-emerald-500/50 text-emerald-200 text-[10px] font-pixel rounded flex items-center gap-1"
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

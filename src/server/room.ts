@@ -178,7 +178,7 @@ export class GameRoom {
         break;
 
       case 'next_round':
-        if (player.isHost && (this.state.phase === 'round_resolution' || this.state.phase === 'reward')) {
+        if (this.state.phase === 'round_resolution' || this.state.phase === 'reward') {
           if (this.state.phase === 'reward' || this.state.bossHp <= 0) {
             this.startEncounter();
           } else {

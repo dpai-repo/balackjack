@@ -56,6 +56,9 @@ wss.on('connection', (ws: WebSocket, req) => {
     const playerId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     room.addPlayer(playerId, playerNameParam, charParam, ws);
 
+    // Send initial session payload with assigned playerId
+    ws.send(JSON.stringify({ type: 'init', playerId, state: room.state }));
+
     ws.on('message', (message: string) => {
       try {
         const data: ClientAction = JSON.parse(message.toString());
