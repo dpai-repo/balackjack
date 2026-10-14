@@ -57,13 +57,41 @@ export const CONSUMABLES_CATALOG: Consumable[] = [
     icon: '✂️',
     effectType: 'splitter',
   },
+  {
+    id: 'joker_slot_voucher',
+    name: 'Matrix Expansion Voucher',
+    description: 'Permanently unlocks your 6th Joker slot. Consumed upon activation.',
+    cost: 50,
+    icon: '⚡',
+    effectType: 'joker_slot_voucher',
+  },
 ];
+
+export const JOKER_SLOT_VOUCHER: Consumable = {
+  id: 'joker_slot_voucher',
+  name: 'Matrix Expansion Voucher',
+  description: 'Permanently unlocks your 6th Joker slot. Consumed upon activation.',
+  cost: 50,
+  icon: '⚡',
+  effectType: 'joker_slot_voucher',
+};
 
 export function getConsumableById(id: string): Consumable | undefined {
   return CONSUMABLES_CATALOG.find(c => c.id === id);
 }
 
-export function getRandomConsumables(count: number): Consumable[] {
-  const shuffled = [...CONSUMABLES_CATALOG].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
+export function getRandomConsumables(count: number, currentUnlockedSlots?: number): Consumable[] {
+  // If player has less than 6 slots, give voucher a 45% chance to appear in store
+  const canSpawnVoucher = currentUnlockedSlots !== undefined && currentUnlockedSlots < 6;
+  const shouldSpawnVoucher = canSpawnVoucher && Math.random() < 0.45;
+
+  const basePool = CONSUMABLES_CATALOG.filter(c => c.id !== 'joker_slot_voucher');
+  const shuffled = [...basePool].sort(() => 0.5 - Math.random());
+  const selected = shuffled.slice(0, shouldSpawnVoucher ? count - 1 : count);
+
+  if (shouldSpawnVoucher) {
+    selected.push(JOKER_SLOT_VOUCHER);
+  }
+
+  return selected.sort(() => 0.5 - Math.random());
 }

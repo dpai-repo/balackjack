@@ -93,7 +93,7 @@ export interface Consumable {
   description: string;
   cost: number;
   icon: string;
-  effectType: 'rewind' | 'rigged_die' | 'emp_jammer' | 'medkit' | 'armor_plate' | 'overcharge' | 'splitter';
+  effectType: 'rewind' | 'rigged_die' | 'emp_jammer' | 'medkit' | 'armor_plate' | 'overcharge' | 'splitter' | 'joker_slot_voucher';
 }
 
 export interface Boss {

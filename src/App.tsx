@@ -97,7 +97,7 @@ export default function App() {
   const [playerArmor, setPlayerArmor] = useState<number>(10);
   const [playerChips, setPlayerChips] = useState<number>(35);
   const [playerJokers, setPlayerJokers] = useState<Joker[]>([]);
-  const [unlockedJokerSlots, setUnlockedJokerSlots] = useState<number>(3);
+  const [unlockedJokerSlots, setUnlockedJokerSlots] = useState<number>(5);
   const [playerConsumables, setPlayerConsumables] = useState<Consumable[]>([]);
 
   // REWARDS OFFERED
@@ -159,7 +159,7 @@ export default function App() {
 
     const startJoker = getJokerById(char.startingJokerId);
     setPlayerJokers(startJoker ? [startJoker] : []);
-    setUnlockedJokerSlots(3);
+    setUnlockedJokerSlots(5);
 
     const startItem = getConsumableById(char.startingConsumableId);
     setPlayerConsumables(startItem ? [startItem] : []);
@@ -175,7 +175,7 @@ export default function App() {
   const handleEnterNode = () => {
     if (stageType === 'shop') {
       const jPool = getRandomJokers(3, playerJokers.map(j => j.id));
-      const cPool = getRandomConsumables(3);
+      const cPool = getRandomConsumables(3, unlockedJokerSlots);
       setShopJokers(jPool);
       setShopConsumables(cPool);
       soundManager.playBgm('shop');
@@ -435,19 +435,30 @@ export default function App() {
               shopJokers={shopJokers}
               shopConsumables={shopConsumables}
               unlockedSlots={unlockedJokerSlots}
-              onBuySlotExpansion={() => {
-                const cost = unlockedJokerSlots === 3 ? 60 : 100;
-                setPlayerChips(prev => prev - cost);
-                setUnlockedJokerSlots(prev => Math.min(5, prev + 1));
+              playerJokers={playerJokers}
+              onReorderJokers={(newSlots) => {
+                setPlayerJokers(newSlots.filter(Boolean) as Joker[]);
               }}
               onBuyJoker={(joker) => {
                 setPlayerChips(prev => prev - joker.cost);
                 setPlayerJokers(prev => [...prev, joker]);
                 setShopJokers(prev => prev.filter(j => j.id !== joker.id));
               }}
+              onReplaceJoker={(replacedJokerId, newJoker, refund) => {
+                setPlayerChips(prev => prev - newJoker.cost + refund);
+                setPlayerJokers(prev => prev.map(j => (j.id === replacedJokerId ? newJoker : j)));
+                setShopJokers(prev => prev.filter(j => j.id !== newJoker.id));
+                soundManager.playCardFlip();
+                soundManager.playComboLink();
+              }}
               onBuyConsumable={(item) => {
                 setPlayerChips(prev => prev - item.cost);
-                setPlayerConsumables(prev => [...prev, item]);
+                if (item.effectType === 'joker_slot_voucher') {
+                  soundManager.playSlotUnlock();
+                  setUnlockedJokerSlots(6);
+                } else {
+                  setPlayerConsumables(prev => [...prev, item]);
+                }
                 setShopConsumables(prev => prev.filter(c => c.id !== item.id));
               }}
               onEnhanceCard={(cardId, enhancement, cost) => {

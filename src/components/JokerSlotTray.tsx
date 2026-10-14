@@ -4,7 +4,7 @@ import { AFFINITY_METAS, evaluateComboLinks, getSlotMultiplier } from '../shared
 import { soundManager } from '../audio/soundManager';
 
 interface JokerSlotTrayProps {
-  unlockedSlots: number; // 3 to 5
+  unlockedSlots: number; // 3 to 6
   slots: (Joker | null)[];
   onReorderSlots: (newSlots: (Joker | null)[]) => void;
   activeLinks?: ComboLink[];
@@ -221,16 +221,16 @@ export const JokerSlotTray: React.FC<JokerSlotTrayProps> = ({
           );
         })}
 
-        {/* LOCKED SLOTS PREVIEW (UP TO 5 MAX) */}
-        {unlockedSlots < 5 && (
+        {/* LOCKED SLOTS PREVIEW (UP TO 6 MAX) */}
+        {unlockedSlots < 6 && (
           <div
             className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-800/60 bg-black/30 text-center opacity-60 p-2 ${
               compact ? 'w-16 h-20 sm:w-20 sm:h-24' : 'w-20 h-24 sm:w-24 sm:h-28'
             }`}
-            title={`Slot ${unlockedSlots + 1} Locked - Purchase slot expansion in the Black Market Shop`}
+            title={`Slot ${unlockedSlots + 1} Locked - Unlock via Matrix Expansion Voucher card in the Shop`}
           >
             <span className="text-slate-600 text-base sm:text-lg mb-1">🔒</span>
-            <span className="text-[7px] font-pixel text-slate-500 uppercase">LOCKED</span>
+            <span className="text-[7px] font-pixel text-slate-500 uppercase">SLOT {unlockedSlots + 1}</span>
             <span className="text-[6px] font-mono text-slate-600">IN SHOP</span>
           </div>
         )}
