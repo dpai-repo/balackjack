@@ -1,4 +1,4 @@
-import { Card, Suit, Rank, CardEnhancementType } from './types';
+import { Card, Suit, Rank, CardEnhancementType, CardEditionType, CardSealType } from './types';
 
 export const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 export const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -30,20 +30,38 @@ export function createRandomEnhancedCard(forceEnhancement?: CardEnhancementType)
   const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
   const rank = RANKS[Math.floor(Math.random() * RANKS.length)];
   const possibleEnhancements: CardEnhancementType[] = [
-    'holographic',
-    'polychrome',
+    'bonus_chips',
+    'overclocked',
+    'glass',
+    'steel',
+    'golden',
     'glitch',
     'armored',
     'radioactive',
-    'golden',
     'vampiric',
-    'overclocked',
   ];
   const enhancement = forceEnhancement || possibleEnhancements[Math.floor(Math.random() * possibleEnhancements.length)];
+
+  // 20% chance for an Edition
+  let edition: CardEditionType | undefined;
+  if (Math.random() < 0.20) {
+    const editions: CardEditionType[] = ['foil', 'holographic', 'polychrome'];
+    edition = editions[Math.floor(Math.random() * editions.length)];
+  }
+
+  // 15% chance for a Seal
+  let seal: CardSealType | undefined;
+  if (Math.random() < 0.15) {
+    const seals: CardSealType[] = ['red', 'gold', 'blue', 'purple'];
+    seal = seals[Math.floor(Math.random() * seals.length)];
+  }
+
   return {
     id: `${suit}-${rank}-enh-${Math.random().toString(36).substring(2, 9)}`,
     suit,
     rank,
     enhancement,
+    edition,
+    seal,
   };
 }

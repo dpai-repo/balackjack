@@ -1,129 +1,104 @@
-# BALACKJACK
+# Balackjack: Rogue Deckbuilder
 
-> **A blackjack-inspired combat roguelike, deckbuilder, and cooperative multiplayer boss battler.**
-
-Built with **React, TypeScript, Vite, Tailwind CSS, Express, WebSockets, and Tone.js**.
+A cyberpunk roguelike deckbuilding blackjack dungeon crawler. Fuse classic blackjack card counting and push-your-luck risk with deep relic synergies, consumable tactical items, multi-tier combat encounters, full card augmentations (Enhancements, Editions, Seals), Cyber-Ascension difficulty stakes, unlockable starter decks, persistent codex compendium, and procedural tracker chiptune audio.
 
 ---
 
-## 🎮 Game Concept & Features
+## 🎴 Key Systems & Mechanics
 
-### 🃏 Combat Blackjack Engine
-- **Deterministic Blackjack Rules:** Full Soft/Hard Ace adjustment, Natural 21 critical damage multipliers (x2.5), dealer bust penalties, push handling, and margin-of-victory strike bonuses.
-- **Dynamic Encounter Stakes:** Real-time tension calculation dynamically adapts music intensity and audio cues based on low HP, dealer upcards, and stand decisions.
+### 1. Full Card Augmentation System
+Every card in the player's deck can be independently customized across three distinct layers:
+- **Card Enhancements (Material Alterations)**:
+  - `Cyber-Chip`: +30 flat attack chips on score.
+  - `Overclocked`: +4 attack multiplier on score.
+  - `Glass Card`: High-risk x2.0 attack multiplier, with a 25% (1-in-4) chance to shatter permanently from the deck on score.
+  - `Steel Card`: Grants +1.5x attack multiplier while held in hand (not played) when standing.
+  - `Golden Card`: Awards +15 chips on round victory, plus +$4 credits if held in hand at round end.
+  - `Quantum Glitch`: Dynamic card value (1–10) that automatically shifts to prevent busting.
+  - `Nanotech Armor`: Instantly grants +10 Armor to the player when drawn or dealt.
+  - `Radioactive Isotope`: Inflicts 8 ongoing radiation damage directly to the Dealer's HP upon standing.
+  - `Vampiric Drain`: Restores +6 player HP on round victory.
+- **Card Editions (Specular Holograms)**:
+  - `Foil Edition`: +50 Attack Chips with metallic cyan moving sheen.
+  - `Holographic Edition`: +10 Attack Mult with iridescent animated shifting shimmer.
+  - `Polychrome Edition`: x1.5 Total Multiplier with cycling RGB chromatic aberration glow.
+- **Circuit Seals (Corner Microchip Stamps)**:
+  - `Red Circuit Seal`: Retriggers the card, scoring all chip and mult values an extra time.
+  - `Gold Mint Seal`: Instantly earns +$3 credits every time the card is scored.
+  - `Blue Protocol Seal`: Synthesizes a random Tactical Gear consumable if held in hand at round end.
+  - `Purple Glitch Seal`: Generates a random Cyber-Mod Augmentation consumable when discarded.
 
-### ⚡ Joker Matrix & Slot Affinities
-- **Slot Capacity & Unlocks:** Runs initialize with **5 of 6 active Joker slots** unlocked. The 6th and final slot is unlocked via a consumable **Matrix Expansion Voucher** card that has a chance to appear in the Black Market Shop.
-- **Drag-and-Drop Slot Reordering:** Players can freely drag-and-drop or click to rearrange active Jokers on desktop and mobile touchscreens.
-- **Adjacency Synergy Links (Combo Links):** Equipping Jokers with matching affinity tags in adjacent slots activates glowing circuit resonance wires that grant compounded multipliers:
-  - ⚔️ **Blade Resonance (+25% Pierce & Attack Surge)**: Stacking physical/blade Jokers.
-  - 🪙 **Gilded Circuit (+20% Chip Yield & Gold Scaling)**: Multiplying economy and payout.
-  - ⚛️ **Quantum Entanglement (+30% Probability Flux)**: Protecting against busts and bending draw luck.
-  - 💉 **Bio-Feedback Loop (+25% Vitality & Armor Shielding)**: Converting margin into shield and health.
-  - ⚡ **Overdrive Surge (+35% Critical Multiplier)**: Supercharging natural 21s.
-- **In-Store Joker Matrix Display:** Active Jokers, active slots, and combo links are displayed directly inside the Black Market Shop.
-- **Side-by-Side Replacement Dialog with Trade-In Refunds:** Purchasing a Joker when all slots are full triggers a dedicated swap prompt where players can decommission an existing Joker for a 50% partial chip refund or cancel the purchase with no chips spent.
+### 2. Joker Matrix & Adjacency Combo Links
+- **Capacity**: Players start every run with **5 out of 6 slots** unlocked in the active Joker Matrix tray.
+- **Matrix Expansion Voucher**: The 6th slot is sealed and can be permanently unlocked for the run by purchasing a consumable **Joker Matrix Expansion Voucher** (`50 Chips`) in the Black Market store.
+- **Adjacency Combo Links**: Jokers trigger synergistic multipliers or bonus chips when placed adjacent to compatible archetypes. Players can reorder Jokers dynamically with dedicated left/right reordering buttons.
+- **Capacity Replacement Dialog**: If purchasing a Joker when all unlocked slots are occupied, the store opens a side-by-side **Joker Swap Modal** showing candidate cards alongside owned Jokers, displaying trade-in chip refunds (50% value) and clean cancellation.
 
-### 🎵 Procedural Retro Chiptune & Tracker Audio
-- **Dedicated Soothing Title Screen:** A gentle, pre-generated 60 BPM composition featuring soft crystalline music box bell chimes and slow, warm sub-bass chords in D-major/B-minor.
-- **Decluttered Adaptive Amiga MOD Tracker Soundtrack:** An extended 64-bar progressive composition (over 3.5 minutes of evolving music) designed with spacious syncopation, open bar rests, and sustained harmonic pad chords to eliminate auditory fatigue.
-- **4-Stem Real-Time Dynamic Intensity Modulation:** Sub-bass, chord pads, lyrical pulse leads, and lo-fi percussion smoothly crossfade in real time across four intensity tiers:
-  - *Tier 0 (Ambient Lounge/Shop)*: Soft pad resonance, quiet sub-bass, zero percussion clutter.
-  - *Tier 1 (Exploration & Play)*: Subtle kick on downbeats, gentle syncopation, mellow lead phrasing.
-  - *Tier 2 (Stand Tension & High Stakes)*: Snare backbeats, richer chord presence, active melodic solos.
-  - *Tier 3 (Boss Climax & Critical HP)*: Driving groove, full presence, heightened tension.
-- **Warm Paula DAC Emulation:** A modeled 2.4 kHz low-pass filter captures authentic 1990s demoscene tracker warmth.
-- **Arcade Sound FX:** Procedural pitch-varied audio for card deals, flips, hits, stands, blackjacks, busts, attacks, heals, and combo links.
+### 3. Black Market Decker Lab & DNA Cloning Vat
+- **Multi-Category Deck Workbench**:
+  - `Enhancement Bay`: Install any of the 9 neural material enhancements.
+  - `Specular Hologram Lab`: Coat cards in Foil (+50 Chips), Holographic (+10 Mult), or Polychrome (x1.5 Mult).
+  - `Circuit Seal Bay`: Stamp Red (Retrigger), Gold (Bounty), Blue (Gear), or Purple (Mod) microchips.
+  - `DNA Cloning Vat`: Pay 40 🪙 to duplicate any augmented card into your deck with all enhancements intact.
+  - `Deck Shredder / Purge`: Permanently delete low-value cards to maximize draw consistency.
+- **Deck Matrix Inspector Modal**: Accessible at any time during runs via the `🎴 DECK` header button with suit filters and detailed telemetry previews.
 
-### 👥 Cooperative Multiplayer Tables (2–6 Players)
-- **Authoritative Server:** WebSockets synchronize 2 to 6 players fighting a shared Dealer Boss.
-- **Strict Anti-Cheat / Fog of War:** Dealer hole card remains completely server-side until the official dealer reveal phase.
-- **Team Combos & Healing:** Field Medics regenerate lowest-health allies, and simultaneous player wins trigger Team Combos.
-- **Instant AI Bot Operatives:** Hosts can press "+ Add AI Bot" anytime to test multi-operative mechanics instantly.
-- **Matchmaking & Private Codes:** Public matchmaking lobby and 4-letter private room codes (e.g. `#BJ77`).
+### 4. 8 Cyber-Ascension Stakes & Starter Decks
+- **8 Compounding Difficulty Stakes**:
+  - `White Stake`: Baseline Street Runner rules.
+  - `Red Stake`: Small Mob encounters yield no baseline chip reward.
+  - `Green Stake`: Required enemy target HP and damage thresholds scale 25% faster.
+  - `Blue Stake`: -1 Discard allowance per combat encounter.
+  - `Purple Stake`: Black Market store items, rerolls, and decker services inflate by +$2 per act.
+  - `Orange Stake`: Cyber-Mod booster packs cost +$3; Jokers may appear Perishable (deactivates after 5 rounds).
+  - `Gold Stake`: Purchased Jokers may be Rental (costs -$3 chips upkeep per round).
+  - `Cyber-Overdrive Stake`: AI Singularity. Bosses trigger passive abilities on both Hit and Stand; 1 in 10 dealt cards is secretly glitched.
+- **5 Unlockable Starter Decks**:
+  - `Neon Standard`: Balanced 52-card baseline deck.
+  - `High-Roller Vault`: +80 Starting Chips, +$2 interest cap, -1 Discard.
+  - `Tactical Spec-Ops`: Starts equipped with EMP Jammer and Military Medkit.
+  - `Quantum Glitch`: 4 Face cards start pre-augmented with Quantum Glitch and Polychrome; starts with 4/6 Joker slots.
+  - `Syndicate VIP`: All 6 Joker slots unlocked from Round 1; store rerolls cost 50% less.
 
-### 📺 Retro CRT Presentation
-- **Post-Processing Pipeline:** Scanlines, monitor curvature distortion, chromatic aberration, vignette, CRT flicker, and screen shake on heavy blows.
-- **Accessibility & Presets:** Low, Medium, High graphics settings, reduced motion options, and persistent master/music/sfx volume controls.
+### 5. Interactive Cyber-Codex & Career Compendium
+- **Joker Matrix Database**: Full catalog of all 30+ Jokers with discovery silhouettes, rarity frames, and lifetime telemetry.
+- **Augment & Seal Lab**: Interactive showcase of all Enhancements, Editions, and Seals with live CardView rendering.
+- **Decks & Stakes Directory**: Detailed dossiers on all 5 Starter Decks and 8 Cyber-Ascension Stakes.
+- **Boss Dossier**: Tactical intelligence on all syndicate bosses and special countermeasures.
+- **Career Archive & Telemetry**: Persistent lifetime stats (Blackjacks scored, highest hand score, bosses defeated) and a 20-run expedition log saved across sessions via `localStorage`.
 
----
-
-## 🚀 Quickstart & Commands
-
-### Prerequisites
-- Node.js 18+
-- npm
-
-### 1. Install Dependencies
-```bash
-npm install
-```
-
-### 2. Run the Development Full-Stack Server
-```bash
-npm run dev
-```
-The server will start on `http://localhost:3000` running Express API, WebSocket room server, and the Vite frontend.
-
-### 3. Run Automated Unit Tests
-```bash
-npm test
-```
-Runs the Vitest suite covering hand calculations, soft/hard aces, dealer behaviors, jokers, combo links, bosses, and multiplayer security.
-
-### 4. Build for Production
-```bash
-npm run build
-npm start
-```
+### 6. Cyberpunk Lo-Fi Chiptune Audio Engine
+- **Soothing Music Box Title Theme (60 BPM)**: Custom procedural FM bell synth (`Tone.PolySynth`) producing crystalline music box chimes with deep sub-bass triangle pads (Dmaj9, F#m7, Bm7, Gmaj7) for a relaxed title screen experience.
+- **Decluttered Adaptive Combat & Exploration Soundtrack (108 BPM)**: Melancholic Amiga MOD tracker groove with spacious multi-bar rests between lead phrases, unhurried basslines, and 4-tier intensity modulation (0: Rest/Map, 1: Combat, 2: Elite/Shop, 3: Boss Overdrive).
 
 ---
 
-## 🗂 Architecture Overview
+## 🏗️ Architecture & Component Hierarchy
 
 ```
-├── server.ts                    # Full-stack entrypoint: Express + WebSockets + Vite
-├── src/
-│   ├── audio/
-│   │   └── soundManager.ts      # Tone.js synthesized audio engine (Menu bells & 64-bar tracker)
-│   ├── components/
-│   │   ├── CardView.tsx         # Pixel playing cards with enhancement badges
-│   │   ├── CombatView.tsx       # Single-player combat table vs dealer boss
-│   │   ├── JokerSlotTray.tsx    # Drag-and-drop Joker Matrix tray with Combo Link wires
-│   │   ├── MultiplayerTable.tsx # 2-6 player synchronized co-op table
-│   │   ├── LobbyView.tsx        # Public/private room matchmaking
-│   │   ├── RunMapView.tsx       # Roguelike act progression map
-│   │   ├── RewardView.tsx       # Post-combat drafting (Cards, Jokers, Heals)
-│   │   ├── ShopView.tsx         # Black Market shop, owned Joker tray & replace modal
-│   │   ├── CharacterSelectView.tsx # 4 starting operative loadouts
-│   │   ├── CollectionView.tsx   # Encyclopedia of cards, jokers, and bosses
-│   │   ├── SettingsModal.tsx    # CRT, audio, and accessibility settings
-│   │   └── StatsModal.tsx       # Persistent career dossier
-│   ├── server/
-│   │   ├── room.ts              # Authoritative multiplayer GameRoom
-│   │   └── matchmaker.ts        # Room indexing & code generator
-│   └── shared/
-│       ├── types.ts             # Shared TypeScript interfaces & audio types
-│       ├── rules.ts             # Pure blackjack rules, ace handling & combat
-│       ├── deck.ts              # 52-card deck generator & shuffle
-│       ├── jokers.ts            # 15 original Jokers, affinity tags & combo links
-│       ├── enhancements.ts      # 8 card enhancements (Holo, Armored, Glitch, etc.)
-│       ├── consumables.ts       # Tactical gear & Matrix Expansion Voucher
-│       ├── bosses.ts            # 5 unique bosses up to The Grand Algorithm
-│       └── characters.ts        # 4 character loadouts
-└── tests/
-    └── rules.test.ts            # Vitest unit & multiplayer security tests
+src/
+├── audio/
+│   └── soundManager.ts          # Tone.js procedural audio engine: Title music box & intensity-adaptive BGM
+├── components/
+│   ├── CardView.tsx             # Card renderer with Foil/Holo/Poly shaders, seal stamps, and inspect tooltips
+│   ├── CharacterSelectView.tsx  # Operative loadout, Starter Deck carousel, and Ascension Stake selector
+│   ├── CollectionView.tsx       # Cyber-Codex: Jokers, Augments, Decks, Stakes, Bosses, and Run Archive
+│   ├── CombatView.tsx           # Blackjack combat table, Glass shattering, Seals, and combo multipliers
+│   ├── DeckInspectionModal.tsx  # Full 52-card deck inspection drawer with suit filters and telemetry
+│   ├── JokerSlotTray.tsx        # 6-slot Joker Matrix with reordering and Combo Link indicators
+│   ├── ShopView.tsx             # Black Market store, owned Joker tray, swap modal, and Deck Workbench
+│   ├── RunMapView.tsx           # Node-based sector map navigation
+│   └── RewardView.tsx           # Post-encounter loot drafts with card augment tooltips
+├── shared/
+│   ├── careerManager.ts         # Persistent profile manager for lifetime statistics, unlocks, and run archive
+│   ├── starterDecks.ts          # 5 Starter Deck configurations, perks, and custom deck modifiers
+│   ├── stakes.ts                # 8 Cyber-Ascension difficulty stakes with escalating modifiers
+│   ├── enhancements.ts          # Metadata and score multipliers for Enhancements, Editions, and Seals
+│   ├── jokers.ts                # Joker definitions, archetype triggers, and Combo Link matrix
+│   ├── consumables.ts           # Tactical items, Booster Packs, and Joker Matrix Expansion Voucher
+│   ├── deck.ts                  # Standard deck generator, shuffle algorithms, and enhanced card builders
+│   ├── bosses.ts                # Syndicate boss stats, portraits, and special protocols
+│   ├── rules.ts                 # Blackjack scoring, dealer hit thresholds, and combo calculations
+│   └── types.ts                 # Comprehensive TypeScript definitions
+└── App.tsx                      # Root state machine: run lifecycle, inventory, and scene router
 ```
-
----
-
-## 🧪 Verified Milestones
-
-- [x] **Milestone 1 — Runnable Foundation:** Full project structure, retro CRT shader pipeline, and Tone.js synthesized sound engine.
-- [x] **Milestone 2 — Combat Blackjack Engine:** Soft/hard Aces, natural 21 multipliers, dealer reveals, bust penalties, push handling.
-- [x] **Milestone 3 — Roguelike Campaign:** 5 escalating boss Acts, drafting rewards, deck lab enhancements, and 15 passive Jokers.
-- [x] **Milestone 4 — Cooperative Multiplayer:** Real-time WebSockets, 2–6 player tables, hidden dealer hole card protection, and instant AI bots.
-- [x] **Milestone 5 — Joker Matrix & Combo Links:** 5/6 starting slots, Matrix Expansion Voucher consumable card, drag-and-drop reordering, and affinity synergy wires.
-- [x] **Milestone 6 — Shop Inventory & Trade-In UX:** In-store Joker tray visibility, and side-by-side card replacement dialog with 50% partial chip refunds.
-- [x] **Milestone 7 — Ambient Audio Revamp:** Dedicated soothing music box title screen track (60 BPM) and decluttered 64-bar Amiga MOD tracker soundtrack with open bar rests and dynamic 4-stem intensity modulation.
-- [x] **Milestone 8 — Verification & Packaging:** Automated test suite passes, zero build errors, production ready.

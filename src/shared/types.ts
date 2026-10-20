@@ -2,21 +2,31 @@ export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
 
 export type CardEnhancementType =
-  | 'holographic' // +10 base attack damage
-  | 'polychrome'  // x1.5 multiplier
-  | 'glitch'      // Can be 1 or 10 or auto-shift to avoid bust
-  | 'armored'     // Grants +8 armor on deal
-  | 'radioactive' // Deals 6 poison damage each round
-  | 'golden'      // +15 chips on win
-  | 'vampiric'    // Heals +5 HP on win
-  | 'overclocked';// Rank value +2 (except Ace)
+  | 'bonus_chips' // +30 flat attack chips
+  | 'overclocked' // +4 base attack mult
+  | 'glass'       // x2.0 mult but 25% chance to shatter on score
+  | 'steel'       // +1.5x mult while held in hand
+  | 'golden'      // +15 chips on round win or +$4 held in hand
+  | 'glitch'      // Quantum shift value to prevent bust
+  | 'armored'     // Grants +10 armor on deal
+  | 'radioactive' // Deals 8 poison radiation damage to boss on stand
+  | 'vampiric'    // Heals +6 HP on round win
+  | 'holographic' // Legacy alias for bonus attack
+  | 'polychrome'; // Legacy alias for 1.5x mult
+
+export type CardEditionType = 'foil' | 'holographic' | 'polychrome';
+
+export type CardSealType = 'red' | 'gold' | 'blue' | 'purple';
 
 export interface Card {
   id: string;
   suit: Suit;
   rank: Rank;
   enhancement?: CardEnhancementType;
-  hidden?: boolean; // For dealer's hole card
+  edition?: CardEditionType;
+  seal?: CardSealType;
+  isShattered?: boolean; // If glass card broke during score
+  hidden?: boolean;      // For dealer's hole card
 }
 
 export interface HandCalculation {
@@ -93,7 +103,22 @@ export interface Consumable {
   description: string;
   cost: number;
   icon: string;
-  effectType: 'rewind' | 'rigged_die' | 'emp_jammer' | 'medkit' | 'armor_plate' | 'overcharge' | 'splitter' | 'joker_slot_voucher';
+  effectType:
+    | 'rewind'
+    | 'rigged_die'
+    | 'emp_jammer'
+    | 'medkit'
+    | 'armor_plate'
+    | 'overcharge'
+    | 'splitter'
+    | 'joker_slot_voucher'
+    | 'cyber_mod_pack'
+    | 'card_clone_serum';
+  modData?: {
+    enhancement?: CardEnhancementType;
+    edition?: CardEditionType;
+    seal?: CardSealType;
+  };
 }
 
 export interface Boss {
@@ -219,3 +244,102 @@ export type ClientAction =
   | { type: 'send_ping'; text: string }
   | { type: 'add_bot' }
   | { type: 'next_round' };
+
+// ==========================================
+// ASCENSION STAKES & DIFFICULTY MODIFIERS
+// ==========================================
+export type StakeLevel =
+  | 'white'
+  | 'red'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'orange'
+  | 'gold'
+  | 'cyber_overdrive';
+
+export interface StakeModifiers {
+  noSmallBlindReward?: boolean;
+  targetScoreMultiplier?: number; // e.g. 1.25 (+25% boss/target HP)
+  discardsModifier?: number;       // e.g. -1
+  priceInflationPerAct?: number;   // e.g. +$2 per act
+  boosterPackCostIncrease?: number;// e.g. +$3
+  perishableJokers?: boolean;      // Jokers deactivate after 5 rounds
+  rentalJokers?: boolean;          // Jokers cost -$3/round
+  bossDoubleAbilities?: boolean;   // Bosses trigger passive on both hit and stand
+  glitchedHands?: boolean;         // 1 in 10 dealt cards is secretly glitched
+}
+
+export interface StakeConfig {
+  id: StakeLevel;
+  name: string;
+  order: number;
+  subtitle: string;
+  description: string;
+  color: string;
+  badge: string;
+  modifiers: StakeModifiers;
+}
+
+// ==========================================
+// STARTER DECKS
+// ==========================================
+export interface StarterDeck {
+  id: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  icon: string;
+  color: string;
+  bonusChips: number;
+  startingJokerSlots: number;
+  startingConsumables?: string[];
+  perksDescription: string;
+  specialRulesDescription: string;
+  interestCapBonus?: number;
+  discardsModifier?: number;
+  unlockCondition?: string;
+  isUnlockedDefault?: boolean;
+}
+
+// ==========================================
+// RUN HISTORY & PERSISTENT CAREER COMPENDIUM
+// ==========================================
+export interface RunHistoryRecord {
+  id: string;
+  timestamp: number;
+  outcome: 'victory' | 'defeat';
+  act: number;
+  score: number;
+  characterId: string;
+  deckId: string;
+  stakeId: StakeLevel;
+  jokersUsed: string[];
+  chipsEarned: number;
+  cardsInDeckCount: number;
+  enhancedCardCount: number;
+  defeatReason?: string;
+}
+
+export interface LifetimeStats {
+  totalRuns: number;
+  runsWon: number;
+  blackjacks: number;
+  busts: number;
+  totalDamageDealt: number;
+  highestHandScore: number;
+  chipsGambled: number;
+  bossesDefeated: number;
+  cardsEnhanced: number;
+  cardsShredded: number;
+}
+
+export interface CareerProfile {
+  lifetimeStats: LifetimeStats;
+  completedStakes: Record<string, StakeLevel[]>; // deckId -> array of beaten stakeIds
+  discoveredJokers: string[];                   // list of discovered joker IDs
+  discoveredAugments: string[];                 // list of discovered enhancement/edition/seal IDs
+  unlockedDecks: string[];                      // unlocked starter deck IDs
+  runHistory: RunHistoryRecord[];
+}
+

@@ -116,7 +116,7 @@ export const RewardView: React.FC<RewardViewProps> = ({
               }}
               className="flex flex-col items-center gap-2 cursor-pointer group"
             >
-              <CardView card={card} />
+              <CardView card={card} showDetailsOnHover={true} />
               <button className="pixel-btn px-3 py-1 bg-cyan-950/60 group-hover:bg-cyan-500 group-hover:text-black border border-cyan-500/40 text-cyan-300 text-[10px] font-pixel rounded transition-colors">
                 TAKE CARD
               </button>

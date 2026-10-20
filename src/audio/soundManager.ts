@@ -396,6 +396,10 @@ class SoundManager {
     this.applyIntensityStems(level, true);
   }
 
+  public setIntensity(level: MusicIntensity) {
+    this.setGameIntensity(level);
+  }
+
   private applyIntensityStems(level: MusicIntensity, smooth: boolean) {
     if (!this.initialized) return;
 
@@ -442,6 +446,15 @@ class SoundManager {
     if (!this.isAudioUnlocked || this.sfxMuted) return;
     try {
       const pitches = ['C5', 'D5', 'E5', 'G5', 'A5'];
+      const pitch = pitches[Math.floor(Math.random() * pitches.length)];
+      this.sfxSynth?.triggerAttackRelease([pitch], '32n', '+0.01');
+    } catch {}
+  }
+
+  public playCardSelect() {
+    if (!this.isAudioUnlocked || this.sfxMuted) return;
+    try {
+      const pitches = ['E5', 'G5', 'B5', 'D6'];
       const pitch = pitches[Math.floor(Math.random() * pitches.length)];
       this.sfxSynth?.triggerAttackRelease([pitch], '32n', '+0.01');
     } catch {}

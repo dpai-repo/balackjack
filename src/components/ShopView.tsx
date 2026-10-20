@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Card, Joker, Consumable, CardEnhancementType } from '../shared/types';
+import { Card, Joker, Consumable, CardEnhancementType, CardEditionType, CardSealType } from '../shared/types';
 import { CardView } from './CardView';
 import { JokerSlotTray } from './JokerSlotTray';
-import { CARD_ENHANCEMENTS } from '../shared/enhancements';
+import { CARD_ENHANCEMENTS, CARD_EDITIONS, CARD_SEALS } from '../shared/enhancements';
 import { AFFINITY_METAS } from '../shared/jokers';
 import { soundManager } from '../audio/soundManager';
 
@@ -19,6 +19,9 @@ interface ShopViewProps {
   onBuyConsumable: (item: Consumable) => void;
   onBuySlotExpansion?: () => void;
   onEnhanceCard: (cardId: string, enhancement: CardEnhancementType, cost: number) => void;
+  onApplyEdition?: (cardId: string, edition: CardEditionType, cost: number) => void;
+  onApplySeal?: (cardId: string, seal: CardSealType, cost: number) => void;
+  onCloneCard?: (cardId: string, cost: number) => void;
   onRemoveCard: (cardId: string, cost: number) => void;
   onLeaveShop: () => void;
 }
@@ -35,19 +38,30 @@ export const ShopView: React.FC<ShopViewProps> = ({
   onReplaceJoker,
   onBuyConsumable,
   onEnhanceCard,
+  onApplyEdition,
+  onApplySeal,
+  onCloneCard,
   onRemoveCard,
   onLeaveShop,
 }) => {
   const [activeTab, setActiveTab] = useState<'merch' | 'deck_service'>('merch');
-  const [selectedDeckCardId, setSelectedDeckCardId] = useState<string | null>(null);
+  const [selectedDeckCardId, setSelectedDeckCardId] = useState<string | null>(playerDeck[0]?.id || null);
   const [pendingReplaceJoker, setPendingReplaceJoker] = useState<Joker | null>(null);
+
+  // Deck Service Sub-tab
+  const [deckServiceTab, setDeckServiceTab] = useState<'enhancements' | 'editions' | 'seals' | 'shred_clone'>('enhancements');
 
   React.useEffect(() => {
     soundManager.setGameIntensity(0);
   }, []);
 
   const ENHANCE_COST = 25;
+  const EDITION_COST = 35;
+  const SEAL_COST = 30;
+  const CLONE_COST = 40;
   const REMOVE_COST = 30;
+
+  const selectedCard = playerDeck.find(c => c.id === selectedDeckCardId) || null;
 
   // Handle clicking to purchase a Joker
   const handleAttemptBuyJoker = (joker: Joker) => {
@@ -78,7 +92,7 @@ export const ShopView: React.FC<ShopViewProps> = ({
             <span>🏪</span> THE BLACK MARKET SYNAPSE
           </h1>
           <p className="text-xs text-slate-400 font-mono mt-1">
-            Smuggled cyber-chips, tactical hardware expansions, and card overhauls.
+            Smuggled cyber-chips, tactical hardware expansions, card augmentations, and DNA cloning.
           </p>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
@@ -146,7 +160,7 @@ export const ShopView: React.FC<ShopViewProps> = ({
               : 'bg-slate-900 text-slate-400 border-slate-800'
           }`}
         >
-          🎴 Deck Lab & Enhancements ({playerDeck.length} Cards)
+          🎴 Deck Lab & Cyber-Augmentations ({playerDeck.length} Cards)
         </button>
       </div>
 
@@ -191,9 +205,9 @@ export const ShopView: React.FC<ShopViewProps> = ({
                             <span
                               key={tag}
                               className="text-[7px] font-pixel px-1.5 py-0.5 rounded uppercase border border-black/30"
-                              style={{ backgroundColor: meta.color, color: '#000' }}
+                              style={{ backgroundColor: meta?.color || '#ffd700', color: '#000' }}
                             >
-                              {meta.name}
+                              {meta?.name || tag}
                             </span>
                           );
                         })}
@@ -233,12 +247,15 @@ export const ShopView: React.FC<ShopViewProps> = ({
               {shopConsumables.map(item => {
                 const canAfford = playerChips >= item.cost;
                 const isVoucher = item.effectType === 'joker_slot_voucher';
+                const isModPack = item.effectType === 'cyber_mod_pack';
                 return (
                   <div
                     key={item.id}
                     className={`pixel-box p-3 sm:p-4 rounded-lg flex flex-col justify-between border ${
                       isVoucher
                         ? 'border-purple-500/80 bg-purple-950/30 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
+                        : isModPack
+                        ? 'border-cyan-500/80 bg-cyan-950/30 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
                         : 'border-slate-800 bg-slate-950/80'
                     }`}
                   >
@@ -248,17 +265,20 @@ export const ShopView: React.FC<ShopViewProps> = ({
                         <div className="flex items-center gap-1.5">
                           {isVoucher && (
                             <span className="text-[8px] font-pixel px-1.5 py-0.5 rounded bg-purple-900 text-purple-200 border border-purple-500">
-                              +1 SLOT UPGRADE
+                              EXPANSION
                             </span>
                           )}
-                          <span className="text-xs font-pixel text-amber-400 font-bold">
+                          {isModPack && (
+                            <span className="text-[8px] font-pixel px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-200 border border-cyan-500">
+                              BOOSTER
+                            </span>
+                          )}
+                          <span className="text-xs font-pixel text-emerald-400 font-bold">
                             {item.cost} 🪙
                           </span>
                         </div>
                       </div>
-                      <h3 className={`font-pixel text-xs mb-1 ${isVoucher ? 'text-purple-300 font-bold' : 'text-white'}`}>
-                        {item.name}
-                      </h3>
+                      <h3 className="font-pixel text-xs text-white mb-1">{item.name}</h3>
                       <p className="text-xs text-slate-300 font-mono leading-relaxed">{item.description}</p>
                     </div>
                     <button
@@ -269,17 +289,11 @@ export const ShopView: React.FC<ShopViewProps> = ({
                       }}
                       className={`mt-4 pixel-btn py-1.5 text-xs font-pixel rounded border font-bold ${
                         canAfford
-                          ? isVoucher
-                            ? 'bg-purple-500 hover:bg-purple-400 text-black border-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]'
-                            : 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300'
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-black border-emerald-300'
                           : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
                       }`}
                     >
-                      {canAfford
-                        ? isVoucher
-                          ? 'PURCHASE & EXPAND'
-                          : 'PURCHASE GEAR'
-                        : 'INSUFFICIENT CHIPS'}
+                      {canAfford ? 'ACQUIRE GEAR' : 'INSUFFICIENT CHIPS'}
                     </button>
                   </div>
                 );
@@ -289,20 +303,37 @@ export const ShopView: React.FC<ShopViewProps> = ({
         </div>
       )}
 
-      {/* DECK SERVICE TAB */}
+      {/* DECK SERVICE TAB (CARD AUGMENTATION LAB & PURGE/CLONE) */}
       {activeTab === 'deck_service' && (
-        <div className="space-y-6">
-          <div className="p-4 bg-cyan-950/20 border border-cyan-500/30 rounded-lg text-xs font-mono text-cyan-200">
-            Select a card from your current deck below to modify with holographic coatings, overclocking, or purging.
+        <div className="space-y-5">
+          <div className="p-3 bg-cyan-950/20 border border-cyan-500/30 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <h2 className="font-pixel text-xs text-cyan-300 uppercase">
+                DECK CYBERNETIC WORKBENCH
+              </h2>
+              <p className="text-[11px] font-mono text-slate-400">
+                Click any card below to install Enhancements, Holographic Editions, Circuit Seals, or DNA Duplication.
+              </p>
+            </div>
+            {selectedCard && (
+              <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1 rounded border border-cyan-400/40">
+                <span className="text-xs font-mono text-slate-300">Selected:</span>
+                <span className="font-pixel text-xs text-cyan-300">{selectedCard.rank} of {selectedCard.suit.toUpperCase()}</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-center gap-2 overflow-x-auto p-3 bg-black/40 rounded-lg border border-slate-800 min-h-[140px]">
+          {/* DECK HORIZONTAL SCROLL / GRID */}
+          <div className="flex gap-2 overflow-x-auto pb-3 pt-1 px-1 max-h-[160px]">
             {playerDeck.map(card => (
               <div
                 key={card.id}
-                onClick={() => setSelectedDeckCardId(card.id)}
-                className={`transition-transform cursor-pointer ${
-                  selectedDeckCardId === card.id ? 'scale-105 ring-2 ring-yellow-400 rounded-md' : 'opacity-85 hover:opacity-100'
+                onClick={() => {
+                  soundManager.playCardSelect();
+                  setSelectedDeckCardId(card.id);
+                }}
+                className={`transition-transform cursor-pointer shrink-0 ${
+                  selectedDeckCardId === card.id ? 'scale-105 ring-2 ring-cyan-400 rounded-md' : 'opacity-85 hover:opacity-100'
                 }`}
               >
                 <CardView card={card} compact />
@@ -310,70 +341,246 @@ export const ShopView: React.FC<ShopViewProps> = ({
             ))}
           </div>
 
-          {selectedDeckCardId && (
-            <div className="pixel-box p-4 rounded-lg border border-yellow-500/40 bg-slate-900/90 space-y-4">
-              <h3 className="font-pixel text-xs text-yellow-300">
-                Card Operations for Selected Asset
-              </h3>
-
-              {/* CARD ENHANCEMENT OPTIONS */}
-              <div>
-                <div className="text-xs font-mono text-slate-400 mb-2">Apply Cybernetic Enhancement ({ENHANCE_COST} 🪙):</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {Object.entries(CARD_ENHANCEMENTS).map(([type, meta]) => {
-                    const canAfford = playerChips >= ENHANCE_COST;
-                    return (
-                      <button
-                        key={type}
-                        disabled={!canAfford}
-                        onClick={() => {
-                          soundManager.playArmor();
-                          onEnhanceCard(selectedDeckCardId, type as CardEnhancementType, ENHANCE_COST);
-                        }}
-                        className={`p-2.5 rounded border text-left flex flex-col justify-between transition-all ${
-                          canAfford
-                            ? 'bg-slate-800 hover:bg-slate-700 border-slate-600'
-                            : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span
-                            className="px-1 py-0.2 rounded text-[7px] font-pixel font-bold"
-                            style={{ backgroundColor: meta.color, color: '#000' }}
-                          >
-                            {meta.badge}
-                          </span>
-                          <span className="font-pixel text-[10px] text-yellow-400">{meta.name}</span>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-mono leading-tight">{meta.description}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+          {selectedCard && (
+            <div className="pixel-box p-4 rounded-lg border border-cyan-500/40 bg-slate-900/90 space-y-4">
+              
+              {/* SUB-TABS FOR AUGMENT TYPES */}
+              <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
+                {[
+                  { id: 'enhancements', label: `1. Enhancements (${ENHANCE_COST} 🪙)` },
+                  { id: 'editions', label: `2. Foil / Holo Editions (${EDITION_COST} 🪙)` },
+                  { id: 'seals', label: `3. Circuit Seals (${SEAL_COST} 🪙)` },
+                  { id: 'shred_clone', label: `4. DNA Clone & Purge` },
+                ].map(sub => (
+                  <button
+                    key={sub.id}
+                    onClick={() => {
+                      soundManager.playButtonClick();
+                      setDeckServiceTab(sub.id as any);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-pixel rounded border transition-all ${
+                      deckServiceTab === sub.id
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 font-bold'
+                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
               </div>
 
-              {/* REMOVE CARD */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              {/* TAB 1: ENHANCEMENTS */}
+              {deckServiceTab === 'enhancements' && (
                 <div>
-                  <h4 className="font-pixel text-xs text-red-400">Purge Card From Deck</h4>
-                  <p className="text-[10px] font-mono text-slate-400">Permanently delete this card to optimize deck draw probability.</p>
+                  <div className="text-xs font-mono text-slate-400 mb-2">
+                    Install Neural Material Enhancement on {selectedCard.rank} of {selectedCard.suit.toUpperCase()}:
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Object.entries(CARD_ENHANCEMENTS).map(([type, meta]) => {
+                      const canAfford = playerChips >= ENHANCE_COST;
+                      const isCurrent = selectedCard.enhancement === type;
+                      return (
+                        <button
+                          key={type}
+                          disabled={!canAfford || isCurrent}
+                          onClick={() => {
+                            soundManager.playArmor();
+                            onEnhanceCard(selectedCard.id, type as CardEnhancementType, ENHANCE_COST);
+                          }}
+                          className={`p-2.5 rounded border text-left flex flex-col justify-between transition-all ${
+                            isCurrent
+                              ? 'bg-cyan-950/40 border-cyan-400 ring-1 ring-cyan-400'
+                              : canAfford
+                              ? 'bg-slate-800 hover:bg-slate-700 border-slate-600'
+                              : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-sm">{meta.icon}</span>
+                              <span
+                                className="px-1 py-0.2 rounded text-[7px] font-pixel font-bold"
+                                style={{ backgroundColor: meta.color, color: '#000' }}
+                              >
+                                {meta.badge}
+                              </span>
+                            </div>
+                            <span className="font-pixel text-[10px] text-white block mb-1">{meta.name}</span>
+                            <p className="text-[9px] text-slate-400 font-mono leading-tight">{meta.description}</p>
+                          </div>
+                          <div className="mt-2 text-[9px] font-pixel text-right text-yellow-400">
+                            {isCurrent ? 'INSTALLED' : `${ENHANCE_COST} 🪙`}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button
-                  disabled={playerChips < REMOVE_COST}
-                  onClick={() => {
-                    soundManager.playBust();
-                    onRemoveCard(selectedDeckCardId, REMOVE_COST);
-                    setSelectedDeckCardId(null);
-                  }}
-                  className={`pixel-btn px-4 py-2 text-xs font-pixel rounded border font-bold ${
-                    playerChips >= REMOVE_COST
-                      ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
-                      : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                  }`}
-                >
-                  PURGE CARD ({REMOVE_COST} 🪙)
-                </button>
-              </div>
+              )}
+
+              {/* TAB 2: EDITIONS */}
+              {deckServiceTab === 'editions' && (
+                <div>
+                  <div className="text-xs font-mono text-slate-400 mb-2">
+                    Apply Specular Hologram Edition ({EDITION_COST} 🪙):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.entries(CARD_EDITIONS).map(([type, meta]) => {
+                      const canAfford = playerChips >= EDITION_COST;
+                      const isCurrent = selectedCard.edition === type;
+                      return (
+                        <button
+                          key={type}
+                          disabled={!canAfford || isCurrent}
+                          onClick={() => {
+                            soundManager.playArmor();
+                            if (onApplyEdition) {
+                              onApplyEdition(selectedCard.id, type as CardEditionType, EDITION_COST);
+                            }
+                          }}
+                          className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                            isCurrent
+                              ? 'bg-cyan-950/50 border-cyan-400 ring-2 ring-cyan-400'
+                              : canAfford
+                              ? 'bg-slate-800 hover:bg-slate-700 border-slate-600'
+                              : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-pixel text-xs text-white">{meta.name}</span>
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[8px] font-pixel font-bold"
+                                style={{ backgroundColor: meta.color, color: '#000' }}
+                              >
+                                {meta.badge}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-300 font-mono leading-relaxed">{meta.description}</p>
+                          </div>
+                          <div className="mt-3 text-[10px] font-pixel text-right text-yellow-400">
+                            {isCurrent ? 'EQUIPPED' : `${EDITION_COST} 🪙`}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: CIRCUIT SEALS */}
+              {deckServiceTab === 'seals' && (
+                <div>
+                  <div className="text-xs font-mono text-slate-400 mb-2">
+                    Stamp Circuit Seal ({SEAL_COST} 🪙):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                    {Object.entries(CARD_SEALS).map(([type, meta]) => {
+                      const canAfford = playerChips >= SEAL_COST;
+                      const isCurrent = selectedCard.seal === type;
+                      return (
+                        <button
+                          key={type}
+                          disabled={!canAfford || isCurrent}
+                          onClick={() => {
+                            soundManager.playArmor();
+                            if (onApplySeal) {
+                              onApplySeal(selectedCard.id, type as CardSealType, SEAL_COST);
+                            }
+                          }}
+                          className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-all ${
+                            isCurrent
+                              ? 'bg-cyan-950/50 border-cyan-400 ring-2 ring-cyan-400'
+                              : canAfford
+                              ? 'bg-slate-800 hover:bg-slate-700 border-slate-600'
+                              : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-base">{meta.icon}</span>
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[7px] font-pixel font-bold"
+                                style={{ backgroundColor: `${meta.color}44`, borderColor: meta.color, color: meta.color }}
+                              >
+                                {meta.badge}
+                              </span>
+                            </div>
+                            <span className="font-pixel text-[10px] text-white block mb-1">{meta.name}</span>
+                            <p className="text-[9px] text-slate-300 font-mono leading-tight">{meta.description}</p>
+                          </div>
+                          <div className="mt-2 text-[9px] font-pixel text-right text-yellow-400">
+                            {isCurrent ? 'STAMPED' : `${SEAL_COST} 🪙`}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: DNA CLONE & PURGE */}
+              {deckServiceTab === 'shred_clone' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* DNA CLONE */}
+                  <div className="p-3.5 rounded-lg border border-cyan-500/30 bg-slate-950/70 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl">🧬</span>
+                        <h4 className="font-pixel text-xs text-cyan-300">DNA Cloning Vat</h4>
+                      </div>
+                      <p className="text-[10px] font-mono text-slate-300 leading-relaxed mb-3">
+                        Fabricate an exact digital clone of {selectedCard.rank} of {selectedCard.suit.toUpperCase()} into your deck, retaining all its Enhancements, Editions, and Seals!
+                      </p>
+                    </div>
+                    <button
+                      disabled={playerChips < CLONE_COST}
+                      onClick={() => {
+                        soundManager.playCardSelect();
+                        if (onCloneCard) {
+                          onCloneCard(selectedCard.id, CLONE_COST);
+                        }
+                      }}
+                      className={`pixel-btn py-2 text-xs font-pixel rounded border font-bold ${
+                        playerChips >= CLONE_COST
+                          ? 'bg-cyan-500 hover:bg-cyan-400 text-black border-cyan-300'
+                          : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                      }`}
+                    >
+                      CLONE CARD ({CLONE_COST} 🪙)
+                    </button>
+                  </div>
+
+                  {/* PURGE / SHRED */}
+                  <div className="p-3.5 rounded-lg border border-red-500/30 bg-slate-950/70 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl">🗑️</span>
+                        <h4 className="font-pixel text-xs text-red-400">Deck Purge / Shredder</h4>
+                      </div>
+                      <p className="text-[10px] font-mono text-slate-300 leading-relaxed mb-3">
+                        Permanently disintegrate this card from your 52-card deck. Thinning your deck increases draw consistency for your highest-scoring augmented cards.
+                      </p>
+                    </div>
+                    <button
+                      disabled={playerChips < REMOVE_COST || playerDeck.length <= 20}
+                      onClick={() => {
+                        soundManager.playBust();
+                        onRemoveCard(selectedCard.id, REMOVE_COST);
+                        setSelectedDeckCardId(playerDeck.find(c => c.id !== selectedCard.id)?.id || null);
+                      }}
+                      className={`pixel-btn py-2 text-xs font-pixel rounded border font-bold ${
+                        playerChips >= REMOVE_COST && playerDeck.length > 20
+                          ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
+                          : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                      }`}
+                    >
+                      {playerDeck.length <= 20 ? 'DECK AT MIN SIZE' : `PURGE CARD (${REMOVE_COST} 🪙)`}
+                    </button>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
         </div>

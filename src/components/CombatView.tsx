@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Boss, HandCalculation, Joker, Consumable, FloatingText } from '../shared/types';
+import { Card, Boss, HandCalculation, Joker, Consumable, FloatingText, StakeLevel } from '../shared/types';
 import { CardView } from './CardView';
 import { FloatingCombatText } from './FloatingCombatText';
 import { ParticleCanvas, ParticleEvent } from './ParticleCanvas';
 import { JokerSlotTray } from './JokerSlotTray';
+import { DeckInspectionModal } from './DeckInspectionModal';
 import { calculateHandValue, shouldDealerHit, evaluateCombatRound } from '../shared/rules';
 import { evaluateComboLinks, getSlotMultiplier } from '../shared/jokers';
 import { createStandardDeck, shuffleDeck } from '../shared/deck';
+import { CONSUMABLES_CATALOG } from '../shared/consumables';
+import { STAKES_MAP } from '../shared/stakes';
+import { careerManager } from '../shared/careerManager';
 import { soundManager } from '../audio/soundManager';
 
 interface CombatViewProps {
@@ -19,7 +23,9 @@ interface CombatViewProps {
   playerJokers: Joker[];
   unlockedJokerSlots?: number;
   onUpdateJokers?: (jokers: Joker[]) => void;
+  onUpdateDeck?: (deck: Card[]) => void;
   playerConsumables: Consumable[];
+  stakeLevel?: StakeLevel;
   onVictory: (remainingHp: number, remainingArmor: number, chipsEarned: number) => void;
   onDefeat: () => void;
   onTriggerShake: () => void;
@@ -35,13 +41,16 @@ export const CombatView: React.FC<CombatViewProps> = ({
   playerJokers: initialJokers,
   unlockedJokerSlots = 3,
   onUpdateJokers,
+  onUpdateDeck,
   playerConsumables: initialConsumables,
+  stakeLevel = 'white',
   onVictory,
   onDefeat,
   onTriggerShake,
 }) => {
   // Combat State
   const [deck, setDeck] = useState<Card[]>([]);
+  const [showDeckModal, setShowDeckModal] = useState(false);
   const [bossHp, setBossHp] = useState<number>(boss.maxHp);
   const [bossFlashHp, setBossFlashHp] = useState<number>(boss.maxHp);
   const [bossArmor, setBossArmor] = useState<number>(0);
@@ -315,6 +324,9 @@ export const CombatView: React.FC<CombatViewProps> = ({
           e.preventDefault();
           startNewRoundRef.current();
         }
+      } else if (key === 'd' || code === 'KeyD') {
+        e.preventDefault();
+        setShowDeckModal(prev => !prev);
       }
     };
 
@@ -414,14 +426,67 @@ export const CombatView: React.FC<CombatViewProps> = ({
       triggerParticles('spark', 50, 20, '#00f0ff', 18);
     }
 
-    // Card enhancements multipliers (Polychrome / Holographic)
+    // Card Enhancements, Editions, and Seals resolution
+    let glassShatteredIds: string[] = [];
+    let instantCreditBounty = 0;
+
     pCards.forEach(c => {
-      if (c.enhancement === 'holographic') {
-        finalDamageToBoss += 12;
+      const repetitions = c.seal === 'red' ? 2 : 1;
+      for (let r = 0; r < repetitions; r++) {
+        // Flat chips additions
+        if (c.enhancement === 'bonus_chips') finalDamageToBoss += 30;
+        if (c.enhancement === 'holographic') finalDamageToBoss += 12;
+        if (c.edition === 'foil') finalDamageToBoss += 50;
+
+        // Multipliers additions
+        if (c.enhancement === 'overclocked') finalDamageToBoss = Math.round(finalDamageToBoss * 1.25 + 4);
+        if (c.edition === 'holographic') finalDamageToBoss = Math.round(finalDamageToBoss * 1.35 + 10);
+        if (c.enhancement === 'polychrome' || c.edition === 'polychrome') {
+          finalDamageToBoss = Math.round(finalDamageToBoss * 1.5);
+        }
+
+        // Glass Card (x2.0 mult with 25% shatter chance)
+        if (c.enhancement === 'glass') {
+          finalDamageToBoss = Math.round(finalDamageToBoss * 2.0);
+          if (r === 0 && Math.random() < 0.25) {
+            glassShatteredIds.push(c.id);
+          }
+        }
+
+        // Steel Card (x1.5 mult)
+        if (c.enhancement === 'steel') {
+          finalDamageToBoss = Math.round(finalDamageToBoss * 1.5);
+        }
+
+        // Gold Seal: +3 credits on score
+        if (c.seal === 'gold') {
+          instantCreditBounty += 3;
+        }
       }
-      if (c.enhancement === 'polychrome') {
-        finalDamageToBoss = Math.round(finalDamageToBoss * 1.5);
+    });
+
+    if (instantCreditBounty > 0) {
+      setPlayerChips(prev => prev + instantCreditBounty);
+      addFloatingText(`+${instantCreditBounty} 🪙 (GOLD SEAL)`, '#ffd700', 60, 60);
+      addLog(`Gold Circuit Seal minted +${instantCreditBounty} Credits!`);
+    }
+
+    if (glassShatteredIds.length > 0) {
+      soundManager.playBust();
+      addFloatingText('GLASS SHATTERED!', '#f43f5e', 50, 45);
+      triggerParticles('shard', 50, 45, '#e0f7fa', 30);
+      addLog(`⚠️ Critical Overload: Glass card shattered into digital dust!`);
+      if (onUpdateDeck) {
+        onUpdateDeck(playerDeck.filter(c => !glassShatteredIds.includes(c.id)));
       }
+    }
+
+    // Record lifetime combat analytics
+    careerManager.recordCombatStats({
+      blackjacks: pCalc.isBlackjack ? 1 : 0,
+      busts: pCalc.isBust ? 1 : 0,
+      damageDealt: finalDamageToBoss,
+      highestHandScore: finalDamageToBoss,
     });
 
     if (finalDamageToBoss > 0) {
@@ -471,6 +536,33 @@ export const CombatView: React.FC<CombatViewProps> = ({
       if (hasHouseThief) {
         setPlayerArmor(prev => prev + 12);
         addFloatingText('+12 ARMOR', '#00d2ff', 35, 65);
+      }
+
+      // Vampiric Card Healing
+      const vampCards = pCards.filter(c => c.enhancement === 'vampiric').length;
+      if (vampCards > 0) {
+        const vampHeal = vampCards * 6;
+        setPlayerHp(prev => Math.min(playerMaxHp, prev + vampHeal));
+        addFloatingText(`+${vampHeal} HP (VAMP)`, '#ff1744', 30, 65);
+        addLog(`Vampiric Drain siphoned +${vampHeal} HP to operative.`);
+      }
+
+      // Golden Card Payout
+      const goldCards = pCards.filter(c => c.enhancement === 'golden').length;
+      if (goldCards > 0) {
+        const goldBonus = goldCards * 15;
+        setPlayerChips(prev => prev + goldBonus);
+        addFloatingText(`+${goldBonus} 🪙 (GOLD)`, '#ffd700', 65, 65);
+        addLog(`Golden Reserve awarded +${goldBonus} Chips on victory!`);
+      }
+
+      // Blue Protocol Seal Gear Synthesis
+      const blueSealCard = pCards.find(c => c.seal === 'blue');
+      if (blueSealCard && consumables.length < 3) {
+        const randomGear = CONSUMABLES_CATALOG[Math.floor(Math.random() * CONSUMABLES_CATALOG.length)];
+        setConsumables(prev => [...prev, randomGear]);
+        addFloatingText(`+${randomGear.name}`, '#2979ff', 40, 70);
+        addLog(`Blue Protocol Seal fabricated tactical gear: ${randomGear.name}!`);
       }
     } else if (result.outcome === 'dealer_win' || result.outcome === 'player_bust') {
       soundManager.playPlayerHit();
@@ -564,10 +656,20 @@ export const CombatView: React.FC<CombatViewProps> = ({
               👹
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-pixel text-xs sm:text-sm text-red-400 font-bold">{boss.name}</h2>
                 <span className="text-[10px] font-pixel bg-red-900 text-red-100 px-2 py-0.5 rounded border border-red-700">
                   ACT {boss.act}
+                </span>
+                <span
+                  className="text-[10px] font-pixel px-2 py-0.5 rounded border"
+                  style={{
+                    backgroundColor: `${STAKES_MAP[stakeLevel]?.color || '#ffffff'}22`,
+                    borderColor: STAKES_MAP[stakeLevel]?.color || '#ffffff',
+                    color: STAKES_MAP[stakeLevel]?.color || '#ffffff',
+                  }}
+                >
+                  {STAKES_MAP[stakeLevel]?.name || 'White Stake'}
                 </span>
               </div>
               <div className="text-xs font-mono text-slate-400">{boss.title}</div>
@@ -676,6 +778,19 @@ export const CombatView: React.FC<CombatViewProps> = ({
               Streak: {consecutiveWins}x 🔥
             </div>
           )}
+
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              setShowDeckModal(true);
+            }}
+            title="Inspect full deck composition & augments [D]"
+            className="pixel-btn px-2.5 py-1 bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-xs font-mono rounded flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span>🎴</span>
+            <span>DECK ({playerDeck.length})</span>
+            <kbd className="text-[9px] px-1 bg-cyan-900/60 rounded border border-cyan-700/60 text-cyan-200">D</kbd>
+          </button>
         </div>
       </div>
 
@@ -767,6 +882,14 @@ export const CombatView: React.FC<CombatViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* MID-COMBAT DECK & AUGMENTATIONS INSPECTION MODAL */}
+      {showDeckModal && (
+        <DeckInspectionModal
+          deck={playerDeck}
+          onClose={() => setShowDeckModal(false)}
+        />
+      )}
     </div>
   );
 };

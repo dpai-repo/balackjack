@@ -1,6 +1,6 @@
 {
-  "summary": "Revised implementation plan preserving all Joker Slot Capacity adjustments (5/6 starting slots, expansion voucher card, owned Jokers in store, side-by-side replacement modal with partial refunds) and Audio Overhaul items (soothing music box title theme, decluttered gameplay soundtrack with rests and sustained chords), while additionally adding a comprehensive update to README.md to reflect the current state of the application architecture, systems, and features.",
-  "updatedAt": "2026-10-14T02:05:57.590291433Z",
+  "summary": "Comprehensive roadmap for Balackjack development:\n1. Full Card Augmentation System (Enhancements, Editions, Seals, Decker Shop Services & Consumable Packs)\n2. Cyber-Ascension Stakes & Persistent Meta-Progression (8 Difficulty Stakes, Unlockable Starter Decks, Career Profile)\n3. Cyber-Codex & Run History Compendium (Interactive Joker/Augment database, run archive, and lifetime analytics)",
+  "updatedAt": "2026-10-16T19:09:24.253097024Z",
   "requestFeedback": true,
   "userFacing": true
 }

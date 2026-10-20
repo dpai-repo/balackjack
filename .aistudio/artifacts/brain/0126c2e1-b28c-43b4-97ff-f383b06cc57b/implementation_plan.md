@@ -1,92 +1,120 @@
-# Implementation Plan: Joker Slot Mechanics, Soothing Audio Overhaul & README Documentation
+# Implementation Plan: Card Augmentation System, Cyber-Ascension Stakes & Codex Compendium
 
-Refining the Joker inventory lifecycle, store integration, musical atmosphere, and project documentation to reflect the current state of Balackjack.
-
----
-
-## 1. Joker Slot Mechanics & Store Overhaul
-
-### 1.1 Capacity & Initial State (5 of 6 Slots)
-- **Starting Capacity**: Update default run state in `src/App.tsx` and character definitions so players start with **5 unlocked Joker slots** out of a maximum of **6**.
-- **Joker Slot Upgrade Card ("Matrix Expansion Voucher")**:
-  - Introduce a special Consumable item: `joker_slot_voucher` ("Joker Matrix Expansion Voucher").
-  - Description: *"Consumable. Permanently unlocks the 6th and final Joker slot. Consumed on activation."*
-  - **Store Spawn Probability**: When rolling shop items in `generateShopConsumables()`, if `unlockedJokerSlots < 6`, give this expansion voucher a weighted chance (~40–50%) to spawn in the store. Once 6 slots are unlocked, it is removed from future shop pools.
-  - **Consumption Flow**: Purchasing/using the voucher plays `soundManager.playSlotUnlock()`, increments `unlockedJokerSlots` to 6, and is consumed.
-
-### 1.2 Owned Jokers Display in Shop
-- Integrate the player's active Joker tray directly into `src/components/ShopView.tsx`.
-- Visual cues: Display currently slotted Jokers, their active positions, and adjacency synergy indicators so players can inspect current combos before making a purchase.
-- Provide quick stats: Current slots used (`X / 5` or `X / 6`) and instant visibility into which Jokers are equipped.
-
-### 1.3 Joker Capacity Replacement Modal (with Partial Refund)
-- **Trigger**: When the player attempts to purchase a Joker from the shop and `playerJokers.length >= unlockedJokerSlots`:
-  - Instead of blocking the purchase or automatically failing, open an interactive **Joker Swap Modal**.
-- **Modal Features**:
-  - Displays the **New Joker** being considered on the left.
-  - Displays all **Currently Equipped Jokers** on the right with a "Select to Replace" action.
-  - **Partial Chip Refund**: Each equipped Joker displays its trade-in value (50% of base rarity cost). Replacing an equipped Joker refunds those chips to offset the purchase price!
-  - **Cancel Option**: "Keep Current Roster (Cancel Purchase)" cleanly dismisses the modal with zero chips spent and no state changes.
-  - **Confirmation Action**: Swaps the selected Joker with the new Joker, applies net chip calculation, plays `playCardFlip()` / `playComboLink()`, and updates the roster.
+Building on the foundation of combat, the Joker Matrix, and intensity-adaptive tracker audio, this phase introduces deep deckbuilding manipulation, layered card augmentations, escalating ascension difficulty stakes, unlockable starter decks, and a comprehensive cyber-codex with run histories.
 
 ---
 
-## 2. Audio Revamp: Soothing Title Theme & Decluttered Soundtrack
+## 1. System Architecture & Feature Breakdown
 
-### 2.1 Dedicated Soothing Title Screen Theme
-- **Thematic Sound**: Soft music box chime / bell synth combined with deep, warm sub-bass chords in a slow, peaceful 60 BPM tempo.
-- **Synthesizer Implementation**:
-  - High-register FM synth voice with bell-like attack and gentle release (`Tone.PolySynth` with custom FM modulation).
-  - Slow, sustained triangle sub-bass voice that anchors the harmony with warm 7th chords (Dmaj9, F#m7, Bm7, Gmaj7).
-  - Soft tape flutter emulation with low-pass filtering (1.8 kHz) for cozy, nostalgic warmth.
-  - Dedicated trigger: `soundManager.playBgm('menu')` runs this pre-generated peaceful composition, immediately soothing the player on app load.
+### Phase 1: Full Card Augmentation Engine (Enhancements, Editions & Seals)
+*Every card in the player's 52-card deck can be independently customized across three distinct layers (Balatro-style modularity):*
 
-### 2.2 Gameplay Soundtrack Decluttering ("Less Busy Overall")
-- **Open Bar Rests & Breathing Room**:
-  - Eliminate relentless 16th-note tracker runs.
-  - Rewrite lead patterns to use spaced 8th-note and dotted quarter phrases with full-measure pauses, allowing the groove and ambience to shine.
-- **Sustained Harmony**:
-  - Replace rapid tracker arpeggio rolls with sustained, warm pad chords that hold over 2–4 bars.
-- **Sparser Rhythm Section**:
-  - Clean kick and snare accents on downbeats only, with delicate ghost percussion.
-  - Reduced percussion density across intensity tiers so combat remains tension-filled without causing auditory fatigue.
-- **Seamless Intensity Modulation**:
-  - Maintain the 4 dynamic intensity tiers (calm shop, focused combat, stand tension, boss stakes) but ensure stems layer gracefully on top of the relaxed foundational groove.
+1. **Card Enhancement (Base Material/Function)**
+   - `None`: Standard card.
+   - `Cyber-Chip` (Bonus): +30 flat chips when scored.
+   - `Overclocked` (Mult): +4 base attack mult when scored.
+   - `Glass Card` (High Risk): x2.0 attack multiplier, but has a 1-in-4 (25%) chance to shatter permanently from the deck upon scoring.
+   - `Steel Card` (Tactical Reserve): +1.5x attack multiplier while held in hand (not played), encouraging disciplined Stand decisions.
+   - `Gold Card` (Passive Yield): Grants +$4 bonus chips if held in hand at the end of the round.
+   - `Glitch Card` (Quantum Shifter): Dynamically adjusts rank value (1 to 10) to automatically prevent player bust on hit.
+   - `Armored Card` (Defensive): Instantly grants +10 Armor to the player when dealt or drawn.
+   - `Radioactive Card` (Poison): Inflicts 8 ongoing radiation damage directly to the Dealer's HP upon standing.
+   - `Vampiric Card` (Siphon): Restores +6 player HP on round victory.
 
----
+2. **Card Edition (Holographic Foil Layer)**
+   - `Standard`: Clean dark cyberpunk card frame.
+   - `Foil`: +50 Chips on score with a cyan metallic gradient sheen.
+   - `Holographic`: +10 Mult on score with an iridescent animated shifting shimmer.
+   - `Polychrome`: x1.5 Mult on score with a cycling RGB chromatic aberration glow.
 
-## 3. README.md Documentation Update
+3. **Card Seal (Wax/Circuit Microchip Stamp)**
+   - `Red Seal` (Retrigger): Scores and triggers all card effects twice.
+   - `Gold Seal` (Instant Bounty): Earns +$3 credits immediately when this card is scored.
+   - `Blue Seal` (Gear Protocol): Creates a random Tactical Consumable if held in hand at the end of the round (if consumable slot available).
+   - `Purple Seal` (Hack Protocol): Spawns a random Cyber-Mod augmentation card when discarded.
 
-### 3.1 Synchronize Features & Project Architecture
-- **Joker Matrix System**:
-  - Document the slot capacity mechanics (starts with 5 slots, expandable to 6 via shop-spawned consumable expansion vouchers).
-  - Document drag-and-drop slot reordering and Joker adjacency synergy multipliers (Combo Links).
-  - Document the Black Market trade-in and replacement dialog with partial chip refunds.
-- **Amiga MOD Tracker Audio Architecture**:
-  - Detail the procedural synthesizer engine: Paula DAC filter emulation, 64-bar progressive compositions, 4-tier real-time dynamic intensity stem crossfading.
-  - Highlight the dedicated soothing music box and sub-bass title screen theme.
-- **Directory Structure & Components**:
-  - Update the file tree in `README.md` to include recently added core components (`JokerSlotTray.tsx`, expanded sound manager stems, enhancement systems).
-- **Verified Milestones**:
-  - Add completed milestones covering Phase 2 & 3 evolutions: Adjacency Combo Links, Tracker Audio Revamp, Matrix Expansion Vouchers, and Adaptive UI.
+4. **Black Market Deck Services & Mod Packs**
+   - **Shredder / Card Removal Bay**: Pay credits ($20 base, scaling +$5 per use) to permanently delete weak or clunky cards (e.g. 2s, 3s, or high bust cards) from the active deck.
+   - **DNA Cloning Vat / Card Duplication**: Pay credits ($40) to create an exact duplicate of any augmented card in the deck.
+   - **Cyber-Mod Booster Packs**: Buyable packs in the shop containing 3 choices of card enhancements, foils, or seals to immediately apply to any card in the deck.
 
 ---
 
-## 4. Verification & Testing Plan
+### Phase 2: Cyber-Ascension Stakes & Meta-Progression
 
-1. **Joker Slot Verification**:
-   - Verify starting a new run initializes with 5 active slots out of 6.
-   - Verify `JokerSlotTray` renders 5 enabled slots and 1 locked 6th slot.
-   - Verify store has a chance to generate the Matrix Expansion Voucher.
-   - Purchasing the voucher unlocks slot 6, consumes the voucher, and disables further voucher spawns.
-2. **Store Joker Swap Modal Verification**:
-   - Fill 5 Joker slots, attempt to purchase a 6th Joker.
-   - Verify the swap modal appears with side-by-side comparison, refund value calculation, and cancel button.
-   - Test both "Cancel" (no chips spent) and "Replace" (chips deducted with refund offset, new Joker equipped).
-3. **Audio Quality & Balance Verification**:
-   - Launch app: Verify the title screen plays the soothing music box bells with slow sub-bass chords.
-   - Enter combat: Verify the gameplay soundtrack transitions smoothly, feeling spacious, chill, and uncluttered.
-   - Test volume sliders and mute toggles in settings.
-4. **README & Build Integrity**:
-   - Verify `README.md` formatting, links, code blocks, and accuracy.
-   - Run `npm test`, `lint_applet`, and `compile_applet` to ensure zero compilation or type errors.
+1. **8 Cyber-Ascension Stakes (Progressive Difficulty Modifiers)**
+   - `White Stake` (Street Runner - Standard): Standard baseline gameplay.
+   - `Red Stake` (Mercenary): Small blind / minor mob nodes award no credit payout.
+   - `Green Stake` (Sub-Net Infiltrator): Required combat score targets scale 20% faster per act.
+   - `Blue Stake` (Firewall Protocol): -1 Discard per combat encounter.
+   - `Purple Stake` (Corporate Inflation): Shop rerolls and store items increase by +$2 per completed act.
+   - `Orange Stake` (Black Market Scarcity): Booster packs cost +$3; Jokers have a chance to be **Perishable** (deactivates after 5 rounds).
+   - `Gold Stake` (Syndicate Debt): Jokers have a chance to be **Rental** (costs -$3 chips upkeep at the end of every round).
+   - `Cyber-Overdrive Stake` (AI Singularity): Boss abilities trigger on both Hit and Stand, with aggressive glitch debuffs applied to dealt cards.
+
+2. **Unlockable Starter Decks**
+   - **Neon Starter Deck**: Standard 52-card balanced deck, default credits.
+   - **High-Roller Deck**: Starts with 80 bonus credits, +$2 maximum interest cap, but begins with 1 fewer discard.
+   - **Tactical Spec-Ops Deck**: Starts with +1 consumable slot and an EMP Jammer & Medkit in inventory.
+   - **Quantum Glitch Deck**: Starts with 4 random face cards pre-augmented with Glitch and Polychrome; begins with 1 fewer starting Joker slot (4/6).
+   - **Syndicate Deck**: Starts with 6 unlocked Joker slots, shop rerolls cost half, but debts accrue higher interest penalties on loss.
+
+3. **Persistent Career Profile (`localStorage`)**
+   - Automatically tracks lifetime career statistics: Total Blackjacks, lifetime damage dealt, peak hand score, bosses eliminated, and win/loss ratio.
+   - Tracks highest stake beaten for each starter deck with visual completion badges.
+   - Unlocks new Jokers, Decks, and Consumables as lifetime milestones are achieved.
+
+---
+
+### Phase 3: Interactive Cyber-Codex & Run History Compendium
+
+1. **Cyber-Codex Database View**
+   - **Joker Matrix Catalog**: All 30+ Jokers displayed with discovery silhouettes, rarity frames, affinity links, flavor lore, and lifetime stats (times picked, win rate).
+   - **Augmentation & Seal Guide**: Full visual cards showcasing all enhancements, foils, and seals with animated sample previews.
+   - **Tactical Gear Catalog**: Deep dive into consumable hacks, vouchers, and deployables.
+   - **Boss Dossier**: Complete tactical intel on all bosses (The Cyber-Dealer, Neon Enforcer, Quantum Core, The Syndicate Queen, etc.) and their specific mechanics.
+
+2. **Run History Archive**
+   - Stores the 20 most recent runs in persistent storage.
+   - Displays character loadout, starter deck, stake level, final act reached, victory/defeat banner, score, equipped Joker Matrix layout, and game-over cause.
+   - Ability to review the winning or losing deck state and share/export a run summary.
+
+3. **Visual & Tactile Enhancements**
+   - Upgraded `CardView` with dynamic SVG/CSS foil shaders, chromatic glow borders for Polychrome, holographic specular shimmers, and seal icons in the top-right corner.
+   - Card Inspection Modal: Clicking cards in the deck viewer, rewards, or shop opens an inspection drawer showing exact scoring breakdowns and tooltips.
+
+---
+
+## 2. File Changes & New Modules
+
+| Path | Action | Description |
+|------|--------|-------------|
+| `src/shared/types.ts` | Modify | Expand `Card` with `edition`, `seal`, `isShattered`, `perishableTurns`, `isRental`; add `StakeLevel`, `StarterDeck`, `RunHistoryRecord`, `CareerProfile` types. |
+| `src/shared/enhancements.ts` | Modify | Define meta, scoring calculations, and visual styles for all enhancements, editions (Foil/Holo/Poly), and seals (Red/Gold/Blue/Purple). |
+| `src/shared/stakes.ts` | Create | Define the 8 Cyber-Ascension Stakes, their rule modifiers, and reward unlock requirements. |
+| `src/shared/starterDecks.ts` | Create | Define starter decks with custom starting compositions, perks, and unlock conditions. |
+| `src/shared/careerManager.ts` | Create | Persistent profile service for tracking career stats, stake completion, codex unlocks, and run archives. |
+| `src/components/CardView.tsx` | Modify | Add rendering for foil shaders, holographic animations, polychrome color cycle, seal stamps, and status badges. |
+| `src/components/DeckInspectionModal.tsx` | Create | Full deck review modal with filter/sort by suit, rank, and augmentations, plus card inspect tooltips. |
+| `src/components/ShopView.tsx` | Modify | Integrate Deck Services (Shredder/Clone) and Cyber-Mod Booster Packs with card selection overlays. |
+| `src/components/CombatView.tsx` | Modify | Execute Glass card shatter checks, Steel card passive hand mults, Gold card yields, and Seal retrigger logic. |
+| `src/components/CharacterSelectView.tsx` | Modify | Add Starter Deck selection carousel and Ascension Stake selector with unlock requirements. |
+| `src/components/CollectionView.tsx` | Modify | Upgrade into the full Cyber-Codex with tabs for Jokers, Augments, Bosses, Gear, Run History, and Career Stats. |
+| `src/App.tsx` | Modify | Connect career profile state, stake rules, run history logging upon victory/defeat, and codex routing. |
+
+---
+
+## 3. Verification & Testing Strategy
+1. **Compilation & Type Safety**: Ensure all new types (`edition`, `seal`, `StakeLevel`, `StarterDeck`) are strictly typed without `any`. Verify clean `compile_applet` and `lint_applet`.
+2. **Combat Scoring Verification**:
+   - Verify Red Seal retriggers a scored card's chips and mults exactly twice.
+   - Verify Steel cards in hand boost total score multiplier without being played.
+   - Verify Glass card triggers 2.0x multiplier and rolls 25% shatter test with sound effect and particle burst.
+   - Verify Gold and Blue Seals award credits and consumables at round conclusion.
+3. **Store & Deck Services**:
+   - Test Card Shredder removing cards down to minimum deck size.
+   - Test Card Duplication cloning augmentations, editions, and seals.
+   - Test Cyber-Mod booster pack picking and applying to selected card.
+4. **Stakes & Persistence**:
+   - Verify high stakes enforce modifiers (e.g. -1 Discard on Blue Stake, higher score requirements on Green Stake).
+   - Verify Run History persists across browser refreshes and correctly archives defeat or victory states with the equipped Joker build.

@@ -65,6 +65,14 @@ export const CONSUMABLES_CATALOG: Consumable[] = [
     icon: '⚡',
     effectType: 'joker_slot_voucher',
   },
+  {
+    id: 'cyber_mod_pack',
+    name: 'Cyber-Mod Booster Pack',
+    description: 'Hardware mod pack: grants a high-tier random card augmentation, edition, or seal.',
+    cost: 25,
+    icon: '📦',
+    effectType: 'cyber_mod_pack',
+  },
 ];
 
 export const JOKER_SLOT_VOUCHER: Consumable = {

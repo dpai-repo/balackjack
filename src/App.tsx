@@ -8,6 +8,10 @@ import {
   Consumable,
   Boss,
   CardEnhancementType,
+  CardEditionType,
+  CardSealType,
+  StarterDeck,
+  StakeLevel,
 } from './shared/types';
 import { RetroCRTWrapper } from './components/RetroCRTWrapper';
 import { SettingsModal, DEFAULT_SETTINGS } from './components/SettingsModal';
@@ -20,11 +24,15 @@ import { RewardView } from './components/RewardView';
 import { ShopView } from './components/ShopView';
 import { LobbyView } from './components/LobbyView';
 import { MultiplayerTable } from './components/MultiplayerTable';
+import { DeckInspectionModal } from './components/DeckInspectionModal';
 import { soundManager } from './audio/soundManager';
 import { createStandardDeck, createRandomEnhancedCard } from './shared/deck';
 import { getBossByAct } from './shared/bosses';
 import { getJokerById, getRandomJokers } from './shared/jokers';
 import { getConsumableById, getRandomConsumables } from './shared/consumables';
+import { STARTER_DECKS, modifyDeckForStarter } from './shared/starterDecks';
+import { STAKES_MAP } from './shared/stakes';
+import { careerManager } from './shared/careerManager';
 
 export type AppView =
   | 'main_menu'
@@ -80,6 +88,7 @@ export default function App() {
   // UI MODALS
   const [showSettings, setShowSettings] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showDeckModal, setShowDeckModal] = useState(false);
   const [isScreenShaking, setIsScreenShaking] = useState(false);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
 
@@ -91,6 +100,20 @@ export default function App() {
   const [stageType, setStageType] = useState<'combat' | 'elite' | 'shop' | 'boss'>('combat');
   const [currentBoss, setCurrentBoss] = useState<Boss>(getBossByAct(1));
   const [playerCharacter, setPlayerCharacter] = useState<CharacterLoadout | null>(null);
+  const [activeDeck, setActiveDeck] = useState<StarterDeck>(STARTER_DECKS[0]);
+  const [activeStake, setActiveStake] = useState<StakeLevel>('white');
+
+  // Boss stats scaled dynamically by active Cyber-Ascension Stake
+  const currentBossWithStake = React.useMemo(() => {
+    const stakeConfig = STAKES_MAP[activeStake];
+    const hpMult = stakeConfig?.modifiers?.targetScoreMultiplier || 1.0;
+    const scaledMaxHp = Math.round(currentBoss.maxHp * hpMult);
+    return {
+      ...currentBoss,
+      maxHp: scaledMaxHp,
+      hp: scaledMaxHp,
+    };
+  }, [currentBoss, activeStake]);
   const [playerDeck, setPlayerDeck] = useState<Card[]>([]);
   const [playerHp, setPlayerHp] = useState<number>(100);
   const [playerMaxHp, setPlayerMaxHp] = useState<number>(100);
@@ -149,26 +172,38 @@ export default function App() {
     }
   };
 
-  // START NEW RUN WITH CHARACTER
-  const handleStartRun = (char: CharacterLoadout) => {
+  // START NEW RUN WITH LOADOUT
+  const handleStartRun = (char: CharacterLoadout, deck: StarterDeck, stake: StakeLevel) => {
+    setActiveDeck(deck);
+    setActiveStake(stake);
     setPlayerCharacter(char);
     setPlayerHp(char.hp);
     setPlayerMaxHp(char.maxHp);
     setPlayerArmor(char.armor);
-    setPlayerChips(char.chips);
+    setPlayerChips(char.chips + deck.bonusChips);
 
     const startJoker = getJokerById(char.startingJokerId);
     setPlayerJokers(startJoker ? [startJoker] : []);
-    setUnlockedJokerSlots(5);
+    setUnlockedJokerSlots(deck.startingJokerSlots);
 
     const startItem = getConsumableById(char.startingConsumableId);
-    setPlayerConsumables(startItem ? [startItem] : []);
+    const initialItems: Consumable[] = startItem ? [startItem] : [];
+    if (deck.startingConsumables) {
+      deck.startingConsumables.forEach(cId => {
+        const item = getConsumableById(cId);
+        if (item) initialItems.push(item);
+      });
+    }
+    setPlayerConsumables(initialItems);
 
-    setPlayerDeck(createStandardDeck());
+    const baseDeck = createStandardDeck();
+    setPlayerDeck(modifyDeckForStarter(baseDeck, deck.id));
     setAct(1);
     setStageType('combat');
     setCurrentBoss(getBossByAct(1));
     setCurrentView('run_map');
+    soundManager.playBgm('combat');
+    soundManager.setIntensity(0);
   };
 
   // ENTER ENCOUNTER NODE
@@ -182,6 +217,7 @@ export default function App() {
       setCurrentView('shop');
     } else {
       soundManager.playBgm('boss');
+      soundManager.setIntensity(2);
       setCurrentView('combat');
     }
   };
@@ -197,10 +233,29 @@ export default function App() {
       ...prev,
       bossesDefeated: prev.bossesDefeated + 1,
       roundsWon: prev.roundsWon + 1,
-      damageDealt: prev.damageDealt + currentBoss.maxHp,
+      damageDealt: prev.damageDealt + currentBossWithStake.maxHp,
     }));
 
+    careerManager.recordCombatStats({
+      bossDefeated: true,
+      damageDealt: currentBossWithStake.maxHp,
+    });
+
     if (act >= 5) {
+      careerManager.recordRunCompletion({
+        id: `run-${Date.now()}`,
+        timestamp: Date.now(),
+        outcome: 'victory',
+        act: 5,
+        score: stats.damageDealt + 500,
+        characterId: playerCharacter?.id || 'operative',
+        deckId: activeDeck.id,
+        stakeId: activeStake,
+        jokersUsed: playerJokers.map(j => j.id),
+        chipsEarned: playerChips + chipsEarned,
+        cardsInDeckCount: playerDeck.length,
+        enhancedCardCount: playerDeck.filter(c => c.enhancement || c.edition || c.seal).length,
+      });
       setCurrentView('victory');
       soundManager.playBgm('victory');
     } else {
@@ -224,6 +279,21 @@ export default function App() {
       ...prev,
       bustsOccurred: prev.bustsOccurred + 1,
     }));
+    careerManager.recordRunCompletion({
+      id: `run-${Date.now()}`,
+      timestamp: Date.now(),
+      outcome: 'defeat',
+      act,
+      score: stats.damageDealt,
+      characterId: playerCharacter?.id || 'operative',
+      deckId: activeDeck.id,
+      stakeId: activeStake,
+      jokersUsed: playerJokers.map(j => j.id),
+      chipsEarned: playerChips,
+      cardsInDeckCount: playerDeck.length,
+      enhancedCardCount: playerDeck.filter(c => c.enhancement || c.edition || c.seal).length,
+      defeatReason: `Overpowered by ${currentBoss.name} in Act ${act}`,
+    });
     setCurrentView('game_over');
   };
 
@@ -257,6 +327,8 @@ export default function App() {
     const nextType = nextAct % 2 === 0 ? 'shop' : 'combat';
     setStageType(nextType);
     setCurrentView('run_map');
+    soundManager.playBgm('combat');
+    soundManager.setIntensity(0);
   };
 
   return (
@@ -286,6 +358,18 @@ export default function App() {
                 className="pixel-btn px-2.5 py-1 bg-yellow-400 text-black text-[10px] font-pixel rounded font-bold animate-pulse"
               >
                 🔊 CLICK FOR AUDIO
+              </button>
+            )}
+
+            {['run_map', 'combat', 'shop', 'reward'].includes(currentView) && (
+              <button
+                onClick={() => {
+                  soundManager.playButtonClick();
+                  setShowDeckModal(true);
+                }}
+                className="pixel-btn px-2.5 py-1 bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-400 text-cyan-300 text-[10px] font-pixel rounded flex items-center gap-1 shadow-sm"
+              >
+                <span>🎴</span> DECK ({playerDeck.length})
               </button>
             )}
 
@@ -324,8 +408,16 @@ export default function App() {
                   BALACKJACK
                 </h1>
                 <p className="text-xs text-slate-400 font-mono">
-                  Stack 21s, trigger cyber Jokers, and cooperate to dismantle the Dealer Syndicate.
+                  Stack 21s, trigger cyber Jokers, augment cards, and conquer Cyber-Ascension stakes.
                 </p>
+                {/* Career stats summary strip */}
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-slate-800 rounded text-[10px] font-mono text-slate-400">
+                  <span>Victories: <span className="text-emerald-400 font-bold font-pixel">{careerManager.getLifetimeStats().runsWon}</span></span>
+                  <span>•</span>
+                  <span>Blackjacks: <span className="text-yellow-400 font-bold font-pixel">{careerManager.getLifetimeStats().blackjacks}</span></span>
+                  <span>•</span>
+                  <span>Bosses: <span className="text-rose-400 font-bold font-pixel">{careerManager.getLifetimeStats().bossesDefeated}</span></span>
+                </div>
               </div>
 
               {/* MENU BUTTONS */}
@@ -355,9 +447,9 @@ export default function App() {
                     soundManager.playButtonClick();
                     setCurrentView('collection');
                   }}
-                  className="w-full pixel-btn py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-200 font-pixel text-xs rounded border-slate-700"
+                  className="w-full pixel-btn py-2.5 bg-slate-900 hover:bg-slate-800 text-cyan-300 font-pixel text-xs rounded border border-cyan-500/40 shadow-sm"
                 >
-                  DATABASE & UNLOCKS (15+ JOKERS)
+                  📚 CYBER-CODEX & RUN ARCHIVE
                 </button>
 
                 <button
@@ -380,7 +472,7 @@ export default function App() {
           {/* CHARACTER SELECT */}
           {currentView === 'character_select' && (
             <CharacterSelectView
-              onSelectCharacter={handleStartRun}
+              onSelectLoadout={handleStartRun}
               onBack={() => setCurrentView('main_menu')}
             />
           )}
@@ -397,7 +489,7 @@ export default function App() {
           {/* SINGLE PLAYER COMBAT */}
           {currentView === 'combat' && (
             <CombatView
-              boss={currentBoss}
+              boss={currentBossWithStake}
               playerDeck={playerDeck}
               playerHp={playerHp}
               playerMaxHp={playerMaxHp}
@@ -406,7 +498,9 @@ export default function App() {
               playerJokers={playerJokers}
               unlockedJokerSlots={unlockedJokerSlots}
               onUpdateJokers={setPlayerJokers}
+              onUpdateDeck={setPlayerDeck}
               playerConsumables={playerConsumables}
+              stakeLevel={activeStake}
               onVictory={handleCombatVictory}
               onDefeat={handleCombatDefeat}
               onTriggerShake={triggerScreenShake}
@@ -466,14 +560,42 @@ export default function App() {
                 setPlayerDeck(prev =>
                   prev.map(c => (c.id === cardId ? { ...c, enhancement } : c))
                 );
+                careerManager.recordCombatStats({ cardEnhanced: true });
+              }}
+              onApplyEdition={(cardId, edition, cost) => {
+                setPlayerChips(prev => prev - cost);
+                setPlayerDeck(prev =>
+                  prev.map(c => (c.id === cardId ? { ...c, edition } : c))
+                );
+                careerManager.recordCombatStats({ cardEnhanced: true });
+              }}
+              onApplySeal={(cardId, seal, cost) => {
+                setPlayerChips(prev => prev - cost);
+                setPlayerDeck(prev =>
+                  prev.map(c => (c.id === cardId ? { ...c, seal } : c))
+                );
+                careerManager.recordCombatStats({ cardEnhanced: true });
+              }}
+              onCloneCard={(cardId, cost) => {
+                const target = playerDeck.find(c => c.id === cardId);
+                if (target) {
+                  setPlayerChips(prev => prev - cost);
+                  setPlayerDeck(prev => [
+                    ...prev,
+                    { ...target, id: `card-clone-${Date.now()}-${Math.floor(Math.random() * 1000)}` },
+                  ]);
+                }
               }}
               onRemoveCard={(cardId, cost) => {
                 setPlayerChips(prev => prev - cost);
                 setPlayerDeck(prev => prev.filter(c => c.id !== cardId));
+                careerManager.recordCombatStats({ cardShredded: true });
               }}
               onLeaveShop={() => {
                 setStageType('combat');
                 setCurrentView('run_map');
+                soundManager.playBgm('combat');
+                soundManager.setIntensity(0);
               }}
             />
           )}
@@ -579,6 +701,13 @@ export default function App() {
           <StatsModal
             stats={stats}
             onClose={() => setShowStats(false)}
+          />
+        )}
+
+        {showDeckModal && (
+          <DeckInspectionModal
+            deck={playerDeck}
+            onClose={() => setShowDeckModal(false)}
           />
         )}
       </div>
